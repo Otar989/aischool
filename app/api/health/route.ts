@@ -1,15 +1,17 @@
 import { NextResponse } from "next/server"
-import { PrismaClient } from "@prisma/client"
-
-const prisma = new PrismaClient()
+import { createClient } from "@supabase/supabase-js"
 
 export async function GET() {
   try {
-    // Check database connection with Prisma
-    await prisma.$queryRaw`SELECT 1`
+    const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
-    // Check environment variables
-    const requiredEnvVars = ["DATABASE_URL", "JWT_SECRET", "YOOKASSA_SECRET_KEY", "YOOKASSA_SHOP_ID"]
+    const { error: connectionError } = await supabase.from("users").select("count", { count: "exact", head: true })
+
+    if (connectionError) {
+      throw connectionError
+    }
+
+    const requiredEnvVars = ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "YOOKASSA_SECRET_KEY", "YOOKASSA_SHOP_ID"]
     const missingEnvVars = requiredEnvVars.filter((envVar) => !process.env[envVar])
 
     if (missingEnvVars.length > 0) {
@@ -23,9 +25,9 @@ export async function GET() {
       )
     }
 
-    // Get basic system stats
-    const userCount = await prisma.user.count()
-    const courseCount = await prisma.course.count()
+    const { count: userCount } = await supabase.from("users").select("*", { count: "exact", head: true })
+
+    const { count: courseCount } = await supabase.from("courses").select("*", { count: "exact", head: true })
 
     return NextResponse.json({
       status: "healthy",
@@ -33,8 +35,8 @@ export async function GET() {
       version: process.env.npm_package_version || "1.0.0",
       database: "connected",
       stats: {
-        users: userCount,
-        courses: courseCount,
+        users: userCount || 0,
+        courses: courseCount || 0,
       },
     })
   } catch (error) {
@@ -47,7 +49,5 @@ export async function GET() {
       },
       { status: 500 },
     )
-  } finally {
-    await prisma.$disconnect()
   }
 }
