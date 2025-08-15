@@ -41,7 +41,7 @@ export async function getCourses(limit = 20, offset = 0) {
   const { data, error } = await supabase
     .from("courses")
     .select("*")
-    .eq("is_active", true)
+    .eq("is_published", true)
     .order("created_at", { ascending: false })
     .range(offset, offset + limit - 1)
 
@@ -53,12 +53,21 @@ export async function getCourses(limit = 20, offset = 0) {
 }
 
 export async function getCourse(slug: string) {
-  const { data, error } = await supabase.from("courses").select("*").eq("slug", slug).eq("is_active", true).single()
+  console.log("[v0] Fetching course with slug:", slug)
+
+  const { data, error } = await supabase
+    .from("courses")
+    .select("*")
+    .eq("slug", slug)
+    .eq("is_published", true)
+    .maybeSingle() // Use maybeSingle() instead of single() to handle no results gracefully
 
   if (error) {
     console.log("[v0] Error fetching course:", error)
     return null
   }
+
+  console.log("[v0] Course data:", data)
   return data
 }
 

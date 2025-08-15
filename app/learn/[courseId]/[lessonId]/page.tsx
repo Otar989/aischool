@@ -22,52 +22,12 @@ import {
   RotateCcw,
 } from "lucide-react"
 import Link from "next/link"
-import { notFound } from "next/navigation"
-
-// Mock data - in real app this would come from database
-const getLessonData = (courseId: string, lessonId: string) => {
-  const lessons = {
-    "550e8400-e29b-41d4-a716-446655440011": {
-      id: "550e8400-e29b-41d4-a716-446655440011",
-      courseId: "550e8400-e29b-41d4-a716-446655440001",
-      title: "Знакомство и приветствие",
-      content: `# Знакомство и приветствие
-
-## Основные фразы
-
-**你好** (nǐ hǎo) - Привет/Здравствуйте
-**我叫...** (wǒ jiào...) - Меня зовут...
-**很高兴认识您** (hěn gāoxìng rènshi nín) - Очень приятно познакомиться
-
-## Диалог-пример
-
-A: 你好，我叫李明。
-B: 你好，李明。我是王小红。很高兴认识您。
-
-## Практическое задание
-
-Представьтесь партнеру по бизнесу, используя изученные фразы.`,
-      estimatedMinutes: 30,
-      isDemo: true,
-      questions: [
-        {
-          id: "q1",
-          type: "multiple_choice",
-          prompt: "Как сказать 'Привет' на китайском языке?",
-          options: ["你好", "再见", "谢谢", "对不起"],
-          correctAnswer: "你好",
-        },
-      ],
-      nextLessonId: "550e8400-e29b-41d4-a716-446655440012",
-      prevLessonId: null,
-    },
-  }
-
-  return lessons[lessonId as keyof typeof lessons] || null
-}
+import { notFound, useRouter } from "next/navigation"
 
 export default function LessonPage({ params }: { params: { courseId: string; lessonId: string } }) {
-  const lesson = getLessonData(params.courseId, params.lessonId)
+  const [lesson, setLesson] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
+  const [hasAccess, setHasAccess] = useState(false)
   const [activeTab, setActiveTab] = useState<"theory" | "practice" | "chat">("theory")
   const [isRecording, setIsRecording] = useState(false)
   const [isSpeaking, setIsSpeaking] = useState(false)
@@ -79,18 +39,70 @@ export default function LessonPage({ params }: { params: { courseId: string; les
       timestamp: new Date(),
     },
   ])
+  const [isCompleting, setIsCompleting] = useState(false)
 
   const chatEndRef = useRef<HTMLDivElement>(null)
+  const router = useRouter()
+
+  useEffect(() => {
+    const fetchLessonData = async () => {
+      try {
+        setLoading(true)
+
+        const response = await fetch(`/api/lessons/${params.lessonId}`)
+        if (!response.ok) {
+          if (response.status === 404) {
+            notFound()
+          }
+          throw new Error("Failed to fetch lesson")
+        }
+
+        const lessonData = await response.json()
+        setLesson(lessonData)
+        setHasAccess(lessonData.hasAccess)
+
+        if (!lessonData.hasAccess && !lessonData.is_demo) {
+          router.push(`/courses/${params.courseId}`)
+          return
+        }
+      } catch (error) {
+        console.error("Error fetching lesson:", error)
+        notFound()
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchLessonData()
+  }, [params.courseId, params.lessonId, router])
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [chatHistory])
 
+  if (loading) {
+    return (
+      <div className="min-h-screen">
+        <Header />
+        <div className="pt-24 px-6">
+          <div className="max-w-7xl mx-auto">
+            <div className="flex items-center justify-center h-64">
+              <div className="text-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+                <p className="text-muted-foreground">Загрузка урока...</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   if (!lesson) {
     notFound()
   }
 
-  const handleSendMessage = () => {
+  const handleSendMessage = async () => {
     if (!chatMessage.trim()) return
 
     const userMessage = {
@@ -102,26 +114,67 @@ export default function LessonPage({ params }: { params: { courseId: string; les
     setChatHistory((prev) => [...prev, userMessage])
     setChatMessage("")
 
-    // Simulate AI response
-    setTimeout(() => {
+    try {
+      const response = await fetch("/api/chat/message", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: chatMessage,
+          lessonId: params.lessonId,
+          courseId: params.courseId,
+        }),
+      })
+
+      const data = await response.json()
       const aiResponse = {
         role: "assistant" as const,
-        content: "Отличный вопрос! Давайте разберем это подробнее. Произношение 你好 (nǐ hǎo) состоит из двух тонов...",
+        content: data.response || "Извините, произошла ошибка. Попробуйте еще раз.",
         timestamp: new Date(),
       }
       setChatHistory((prev) => [...prev, aiResponse])
-    }, 1000)
+    } catch (error) {
+      console.error("Error sending message:", error)
+      const errorResponse = {
+        role: "assistant" as const,
+        content: "Извините, произошла ошибка при отправке сообщения. Попробуйте еще раз.",
+        timestamp: new Date(),
+      }
+      setChatHistory((prev) => [...prev, errorResponse])
+    }
   }
 
   const handleVoiceToggle = () => {
     setIsRecording(!isRecording)
-    // TODO: Implement voice recording
   }
 
   const handlePlayAudio = (text: string) => {
     setIsSpeaking(true)
-    // TODO: Implement TTS
     setTimeout(() => setIsSpeaking(false), 2000)
+  }
+
+  const handleCompleteLesson = async () => {
+    if (isCompleting) return
+
+    setIsCompleting(true)
+    try {
+      const response = await fetch("/api/lessons/complete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ lessonId: params.lessonId }),
+      })
+
+      if (response.ok) {
+        if (lesson.nextLessonId) {
+          router.push(`/learn/${params.courseId}/${lesson.nextLessonId}`)
+        } else {
+          router.push(`/courses/${params.courseId}`)
+        }
+      }
+    } catch (error) {
+      console.error("Error completing lesson:", error)
+    } finally {
+      setIsCompleting(false)
+    }
   }
 
   return (
@@ -141,8 +194,8 @@ export default function LessonPage({ params }: { params: { courseId: string; les
               <div>
                 <h1 className="text-2xl font-bold font-sans">{lesson.title}</h1>
                 <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                  <span>{lesson.estimatedMinutes} минут</span>
-                  {lesson.isDemo && <Badge variant="secondary">Демо-урок</Badge>}
+                  <span>{lesson.duration_minutes} минут</span>
+                  {lesson.is_demo && <Badge variant="secondary">Демо-урок</Badge>}
                 </div>
               </div>
             </div>
@@ -171,9 +224,11 @@ export default function LessonPage({ params }: { params: { courseId: string; les
           <div className="mb-8">
             <div className="flex items-center justify-between text-sm text-muted-foreground mb-2">
               <span>Прогресс урока</span>
-              <span>1 из 7 уроков</span>
+              <span>
+                {lesson.lessonNumber} из {lesson.totalLessons} уроков
+              </span>
             </div>
-            <Progress value={14} className="h-2" />
+            <Progress value={lesson.courseProgress || 0} className="h-2" />
           </div>
 
           {/* Lesson Content */}
@@ -364,9 +419,9 @@ export default function LessonPage({ params }: { params: { courseId: string; les
                 </div>
 
                 <div className="mt-8">
-                  <GradientButton className="w-full">
+                  <GradientButton className="w-full" onClick={handleCompleteLesson} disabled={isCompleting}>
                     <CheckCircle className="w-4 h-4 mr-2" />
-                    Завершить урок
+                    {isCompleting ? "Завершение..." : "Завершить урок"}
                   </GradientButton>
                 </div>
               </GlassCard>
