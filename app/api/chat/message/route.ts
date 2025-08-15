@@ -34,7 +34,8 @@ export async function POST(request: NextRequest) {
       sessionId,
     ])
 
-    const userMessageCount = Number.parseInt(messageCount.rows[0].count)
+    const userMessageCount =
+      messageCount.rows.length > 0 ? Number.parseInt(messageCount.rows[0].count) : 0
     const maxMessages = Number.parseInt(process.env.MAX_MESSAGES_PER_LESSON || "50")
 
     if (userMessageCount >= maxMessages) {

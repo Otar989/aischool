@@ -78,6 +78,10 @@ export async function POST(request: NextRequest) {
       [user.id, type, courseId, amount, "RUB", couponCode, "pending"],
     )
 
+    if (orderResult.rows.length === 0) {
+      return NextResponse.json({ error: "Failed to create order" }, { status: 500 })
+    }
+
     const orderId = orderResult.rows[0].id
 
     const checkoutUrl = await createYooKassaPayment({

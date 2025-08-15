@@ -40,6 +40,10 @@ async function handlePaymentSucceeded(payment: any) {
 
   // Get order details
   const orderResult = await query("SELECT * FROM orders WHERE id = $1", [orderId])
+  if (orderResult.rows.length === 0) {
+    console.error("Order not found:", orderId)
+    return
+  }
   const order = orderResult.rows[0]
 
   if (order.type === "subscription") {

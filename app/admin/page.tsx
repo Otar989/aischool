@@ -12,11 +12,11 @@ export default async function AdminDashboard() {
   ])
 
   const stats = {
-    users: usersResult.rows[0].count,
-    courses: coursesResult.rows[0].count,
-    orders: paymentsResult.rows[0].count,
-    revenue: paymentsResult.rows[0].revenue || 0,
-    sessions: sessionsResult.rows[0].count,
+    users: usersResult.rows.length > 0 ? Number(usersResult.rows[0].count) : 0,
+    courses: coursesResult.rows.length > 0 ? Number(coursesResult.rows[0].count) : 0,
+    orders: paymentsResult.rows.length > 0 ? Number(paymentsResult.rows[0].count) : 0,
+    revenue: paymentsResult.rows.length > 0 ? Number(paymentsResult.rows[0].revenue) || 0 : 0,
+    sessions: sessionsResult.rows.length > 0 ? Number(sessionsResult.rows[0].count) : 0,
   }
 
   // Get recent activity

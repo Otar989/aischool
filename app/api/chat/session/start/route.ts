@@ -22,11 +22,15 @@ export async function POST(request: NextRequest) {
 
     // Create new chat session
     const result = await query(
-      `INSERT INTO chat_sessions (user_id, course_id, lesson_id, started_at) 
-       VALUES ($1, $2, $3, NOW()) 
+      `INSERT INTO chat_sessions (user_id, course_id, lesson_id, started_at)
+       VALUES ($1, $2, $3, NOW())
        RETURNING id, started_at`,
       [user.id, courseId, lessonId],
     )
+
+    if (result.rows.length === 0) {
+      return NextResponse.json({ error: "Failed to create chat session" }, { status: 500 })
+    }
 
     const session = result.rows[0]
 
