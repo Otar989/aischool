@@ -1,24 +1,18 @@
-import { openai } from "@ai-sdk/openai"
-
 export async function transcribeAudio(audioUrl: string): Promise<string> {
+  // Simulate transcription delay
+  await new Promise((resolve) => setTimeout(resolve, 2000))
+
   try {
-    // Fetch audio file
-    const response = await fetch(audioUrl)
-    if (!response.ok) {
-      throw new Error("Failed to fetch audio file")
-    }
+    // Mock transcription responses
+    const mockTranscriptions = [
+      "Привет, у меня есть вопрос по этой теме",
+      "Можете объяснить это более подробно?",
+      "Я не совсем понимаю этот концепт",
+      "Спасибо за объяснение, теперь понятно",
+      "Как это применить на практике?",
+    ]
 
-    const audioBuffer = await response.arrayBuffer()
-    const audioFile = new File([audioBuffer], "audio.webm", { type: "audio/webm" })
-
-    // Use OpenAI Whisper for transcription
-    const transcription = await openai.audio.transcriptions.create({
-      file: audioFile,
-      model: "whisper-1",
-      language: "ru", // Russian language
-    })
-
-    return transcription.text
+    return mockTranscriptions[Math.floor(Math.random() * mockTranscriptions.length)]
   } catch (error) {
     console.error("Error transcribing audio:", error)
     throw new Error("Failed to transcribe audio")
@@ -26,21 +20,16 @@ export async function transcribeAudio(audioUrl: string): Promise<string> {
 }
 
 export async function generateSpeech(text: string, voice = "nova"): Promise<string> {
+  // Simulate speech generation delay
+  await new Promise((resolve) => setTimeout(resolve, 1500))
+
   try {
-    const response = await openai.audio.speech.create({
-      model: "tts-1",
-      voice: voice as any,
-      input: text,
-    })
+    // For demo purposes, return a placeholder audio URL
+    // In a real implementation, this would generate actual speech
+    console.log(`[Mock] Generating speech for: "${text}" with voice: ${voice}`)
 
-    const audioBuffer = await response.arrayBuffer()
-
-    // In a real app, you would upload this to your storage service
-    // For now, we'll create a blob URL (this is temporary and won't persist)
-    const blob = new Blob([audioBuffer], { type: "audio/mpeg" })
-    const audioUrl = URL.createObjectURL(blob)
-
-    return audioUrl
+    // Return a placeholder audio file URL (you could use a real audio file here)
+    return "/placeholder-audio.mp3"
   } catch (error) {
     console.error("Error generating speech:", error)
     throw new Error("Failed to generate speech")

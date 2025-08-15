@@ -1,6 +1,3 @@
-import { openai } from "@ai-sdk/openai"
-import { generateText } from "ai"
-
 interface ConversationMessage {
   role: "system" | "user" | "assistant"
   content: string
@@ -11,45 +8,44 @@ interface AIResponse {
   tokensUsed: number
 }
 
+// Mock AI responses for demonstration
+const mockResponses = [
+  "Отличный вопрос! Давайте разберем это пошагово. Что вы уже знаете по этой теме?",
+  "Хорошо! Вы на правильном пути. Попробуйте подумать о практическом применении этого концепта.",
+  "Не совсем правильно, но близко! Подсказка: обратите внимание на ключевые слова в задании.",
+  "Превосходно! Вы отлично понимаете материал. Давайте перейдем к более сложному вопросу.",
+  "Интересная мысль! Можете ли вы привести конкретный пример для иллюстрации?",
+]
+
 export async function generateAIResponse(
   conversationHistory: ConversationMessage[],
   lessonContext: string,
 ): Promise<AIResponse> {
+  // Simulate API delay
+  await new Promise((resolve) => setTimeout(resolve, 1000 + Math.random() * 2000))
+
   try {
-    const systemPrompt = `Вы ИИ-наставник для онлайн-школы. Ваша роль:
+    // Simple mock logic based on conversation
+    const lastMessage = conversationHistory[conversationHistory.length - 1]
+    let response = mockResponses[Math.floor(Math.random() * mockResponses.length)]
 
-1. Будьте дружелюбным, но строгим преподавателем
-2. Помогайте студенту понять материал, не давая готовые ответы сразу
-3. Задавайте наводящие вопросы
-4. Адаптируйтесь под уровень студента
-5. Если студент делает ошибки 2+ раза, упрощайте объяснения
-6. Если студент отвечает правильно 3+ раза подряд, усложняйте вопросы
-7. В конце урока дайте 3 ключевых вывода + 1 действие
-
-Контекст урока:
-${lessonContext}
-
-Отвечайте на русском языке. Будьте краткими, но информативными.`
-
-    const messages = [
-      { role: "system" as const, content: systemPrompt },
-      ...conversationHistory.slice(-10), // Keep last 10 messages for context
-    ]
-
-    const { text, usage } = await generateText({
-      model: openai("gpt-4o-mini"),
-      messages,
-      maxTokens: 500,
-      temperature: 0.7,
-    })
+    // Add some context-aware responses
+    if (lastMessage?.content.toLowerCase().includes("не понимаю")) {
+      response = "Понимаю, что это может быть сложно. Давайте разберем по частям. Начнем с основ..."
+    } else if (lastMessage?.content.toLowerCase().includes("спасибо")) {
+      response = "Пожалуйста! Рад помочь. Есть ли еще вопросы по этой теме?"
+    }
 
     return {
-      content: text,
-      tokensUsed: usage?.totalTokens || 0,
+      content: response,
+      tokensUsed: Math.floor(Math.random() * 100) + 50,
     }
   } catch (error) {
     console.error("Error generating AI response:", error)
-    throw new Error("Failed to generate AI response")
+    return {
+      content: "Извините, произошла техническая ошибка. Попробуйте задать вопрос еще раз.",
+      tokensUsed: 0,
+    }
   }
 }
 
@@ -62,41 +58,48 @@ interface Question {
 }
 
 export async function gradeAnswer(question: Question, answer: string) {
+  // Simulate grading delay
+  await new Promise((resolve) => setTimeout(resolve, 1500))
+
   try {
     const rubric = question.rubric_json || {}
     const maxPoints = rubric.points || 100
 
-    const gradingPrompt = `Оцените ответ студента на вопрос.
+    // Simple mock grading logic
+    let score = 0
+    let isCorrect = false
+    let feedback = ""
+    let suggestions: string[] = []
 
-Вопрос: ${question.prompt}
-Ответ студента: ${answer}
-Правильный ответ (если есть): ${question.correct_answer || "Не указан"}
-Критерии оценки: ${JSON.stringify(rubric)}
+    if (question.correct_answer) {
+      // Simple text similarity check
+      const similarity = calculateSimilarity(answer.toLowerCase(), question.correct_answer.toLowerCase())
+      score = Math.floor(similarity * maxPoints)
+      isCorrect = score >= maxPoints * 0.7
 
-Дайте оценку от 0 до ${maxPoints} баллов и подробную обратную связь на русском языке.
-Объясните, что правильно, что можно улучшить, и дайте конкретные рекомендации.
+      if (isCorrect) {
+        feedback = "Отличный ответ! Вы правильно понимаете концепцию."
+        suggestions = ["Попробуйте применить это знание в практических задачах"]
+      } else if (score > maxPoints * 0.4) {
+        feedback = "Хороший ответ, но есть неточности. Вы на правильном пути!"
+        suggestions = ["Обратите внимание на ключевые термины", "Попробуйте быть более конкретным"]
+      } else {
+        feedback = "Ответ нуждается в доработке. Рекомендую повторить материал."
+        suggestions = ["Перечитайте теоретическую часть", "Обратитесь за помощью к преподавателю"]
+      }
+    } else {
+      // For open-ended questions, give random but reasonable scores
+      score = Math.floor(Math.random() * 40) + 60 // 60-100 range
+      isCorrect = score >= 70
+      feedback = "Спасибо за развернутый ответ! Видно, что вы размышляете над темой."
+      suggestions = ["Продолжайте в том же духе", "Попробуйте связать с практическими примерами"]
+    }
 
-Ответьте в формате JSON:
-{
-  "score": число от 0 до ${maxPoints},
-  "feedback": "подробная обратная связь",
-  "isCorrect": true/false,
-  "suggestions": ["совет 1", "совет 2"]
-}`
-
-    const { text } = await generateText({
-      model: openai("gpt-4o-mini"),
-      messages: [{ role: "user", content: gradingPrompt }],
-      maxTokens: 300,
-      temperature: 0.3,
-    })
-
-    const result = JSON.parse(text)
     return {
-      score: result.score,
-      feedback: result.feedback,
-      isCorrect: result.score >= maxPoints * 0.7, // 70% threshold
-      suggestions: result.suggestions || [],
+      score,
+      feedback,
+      isCorrect,
+      suggestions,
     }
   } catch (error) {
     console.error("Error grading answer:", error)
@@ -107,4 +110,19 @@ export async function gradeAnswer(question: Question, answer: string) {
       suggestions: [],
     }
   }
+}
+
+// Simple text similarity function
+function calculateSimilarity(str1: string, str2: string): number {
+  const words1 = str1.split(/\s+/)
+  const words2 = str2.split(/\s+/)
+
+  let matches = 0
+  words1.forEach((word) => {
+    if (words2.some((w) => w.includes(word) || word.includes(w))) {
+      matches++
+    }
+  })
+
+  return matches / Math.max(words1.length, words2.length)
 }
