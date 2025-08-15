@@ -1,8 +1,7 @@
 "use client"
 
-import type React from "react"
-
-import { useState } from "react"
+import { useActionState, useEffect } from "react"
+import { useFormStatus } from "react-dom"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
@@ -10,52 +9,38 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { GlassCard } from "@/components/ui/glass-card"
 import { GradientButton } from "@/components/ui/gradient-button"
-import { BookOpen, Mail, Lock, Eye, EyeOff, AlertCircle } from "lucide-react"
-import { createClient } from "@/lib/supabase/client"
+import { BookOpen, Mail, Lock, Eye, EyeOff, AlertCircle, Loader2 } from "lucide-react"
+import { signIn } from "@/lib/actions"
+import { useState } from "react"
+
+function SubmitButton() {
+  const { pending } = useFormStatus()
+
+  return (
+    <GradientButton type="submit" className="w-full" disabled={pending}>
+      {pending ? (
+        <>
+          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          Вход...
+        </>
+      ) : (
+        "Войти"
+      )}
+    </GradientButton>
+  )
+}
 
 export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false)
-  const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
   const router = useRouter()
-  const supabase = createClient()
+  const [state, formAction] = useActionState(signIn, null)
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setIsLoading(true)
-    setError(null)
-
-    const formData = new FormData(e.target as HTMLFormElement)
-    const email = formData.get("email") as string
-    const password = formData.get("password") as string
-
-    try {
-      const { data, error: authError } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      })
-
-      if (authError) {
-        setError(authError.message)
-        return
-      }
-
-      if (data.user) {
-        // Check user role and redirect accordingly
-        const { data: profile } = await supabase.from("users").select("role").eq("id", data.user.id).single()
-
-        if (profile?.role === "ADMIN") {
-          router.push("/admin")
-        } else {
-          router.push("/dashboard")
-        }
-      }
-    } catch (err) {
-      setError("Произошла ошибка при входе. Попробуйте еще раз.")
-    } finally {
-      setIsLoading(false)
+  // Handle successful login by redirecting
+  useEffect(() => {
+    if (state?.success) {
+      router.push("/dashboard")
     }
-  }
+  }, [state, router])
 
   return (
     <div className="min-h-screen flex items-center justify-center px-6 py-12">
@@ -76,14 +61,14 @@ export default function LoginPage() {
             <p className="text-muted-foreground font-serif">Войдите в свой аккаунт, чтобы продолжить обучение</p>
           </div>
 
-          {error && (
+          {state?.error && (
             <div className="mb-4 p-3 bg-red-500/10 border border-red-500/20 rounded-lg flex items-center gap-2 text-red-600">
               <AlertCircle className="w-4 h-4" />
-              <span className="text-sm">{error}</span>
+              <span className="text-sm">{state.error}</span>
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form action={formAction} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
               <div className="relative">
@@ -137,9 +122,7 @@ export default function LoginPage() {
               </Link>
             </div>
 
-            <GradientButton type="submit" className="w-full" disabled={isLoading}>
-              {isLoading ? "Вход..." : "Войти"}
-            </GradientButton>
+            <SubmitButton />
           </form>
 
           <div className="mt-6">
@@ -160,11 +143,11 @@ export default function LoginPage() {
                 />
                 <path
                   fill="currentColor"
-                  d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                  d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
                 />
                 <path
                   fill="currentColor"
-                  d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
+                  d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
                 />
                 <path
                   fill="currentColor"

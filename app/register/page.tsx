@@ -1,8 +1,7 @@
 "use client"
 
-import type React from "react"
-
-import { useState } from "react"
+import { useActionState } from "react"
+import { useFormStatus } from "react-dom"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
@@ -10,69 +9,32 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { GlassCard } from "@/components/ui/glass-card"
 import { GradientButton } from "@/components/ui/gradient-button"
-import { BookOpen, Mail, Lock, User, Eye, EyeOff, AlertCircle, CheckCircle } from "lucide-react"
-import { createClient } from "@/lib/supabase/client"
+import { BookOpen, Mail, Lock, User, Eye, EyeOff, AlertCircle, CheckCircle, Loader2 } from "lucide-react"
+import { signUp } from "@/lib/actions"
+import { useState } from "react"
+
+function SubmitButton() {
+  const { pending } = useFormStatus()
+
+  return (
+    <GradientButton type="submit" className="w-full" disabled={pending}>
+      {pending ? (
+        <>
+          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          Создание аккаунта...
+        </>
+      ) : (
+        "Создать аккаунт"
+      )}
+    </GradientButton>
+  )
+}
 
 export default function RegisterPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
-  const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [success, setSuccess] = useState<string | null>(null)
   const router = useRouter()
-  const supabase = createClient()
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setIsLoading(true)
-    setError(null)
-    setSuccess(null)
-
-    const formData = new FormData(e.target as HTMLFormElement)
-    const name = formData.get("name") as string
-    const email = formData.get("email") as string
-    const password = formData.get("password") as string
-    const confirmPassword = formData.get("confirmPassword") as string
-
-    // Validate passwords match
-    if (password !== confirmPassword) {
-      setError("Пароли не совпадают")
-      setIsLoading(false)
-      return
-    }
-
-    try {
-      const { data, error: authError } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          emailRedirectTo: process.env.NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL || `${window.location.origin}/dashboard`,
-          data: {
-            full_name: name,
-          },
-        },
-      })
-
-      if (authError) {
-        setError(authError.message)
-        return
-      }
-
-      if (data.user) {
-        if (data.user.email_confirmed_at) {
-          // User is immediately confirmed, redirect to dashboard
-          router.push("/dashboard")
-        } else {
-          // User needs to confirm email
-          setSuccess("Проверьте вашу почту для подтверждения аккаунта")
-        }
-      }
-    } catch (err) {
-      setError("Произошла ошибка при регистрации. Попробуйте еще раз.")
-    } finally {
-      setIsLoading(false)
-    }
-  }
+  const [state, formAction] = useActionState(signUp, null)
 
   return (
     <div className="min-h-screen flex items-center justify-center px-6 py-12">
@@ -93,21 +55,21 @@ export default function RegisterPage() {
             <p className="text-muted-foreground font-serif">Присоединяйтесь к тысячам студентов уже сегодня</p>
           </div>
 
-          {error && (
+          {state?.error && (
             <div className="mb-4 p-3 bg-red-500/10 border border-red-500/20 rounded-lg flex items-center gap-2 text-red-600">
               <AlertCircle className="w-4 h-4" />
-              <span className="text-sm">{error}</span>
+              <span className="text-sm">{state.error}</span>
             </div>
           )}
 
-          {success && (
+          {state?.success && (
             <div className="mb-4 p-3 bg-green-500/10 border border-green-500/20 rounded-lg flex items-center gap-2 text-green-600">
               <CheckCircle className="w-4 h-4" />
-              <span className="text-sm">{success}</span>
+              <span className="text-sm">{state.success}</span>
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form action={formAction} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="name">Имя</Label>
               <div className="relative">
@@ -210,9 +172,7 @@ export default function RegisterPage() {
               </span>
             </div>
 
-            <GradientButton type="submit" className="w-full" disabled={isLoading}>
-              {isLoading ? "Создание аккаунта..." : "Создать аккаунт"}
-            </GradientButton>
+            <SubmitButton />
           </form>
 
           <div className="mt-6">
