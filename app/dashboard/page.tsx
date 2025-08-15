@@ -1,133 +1,137 @@
+"use client"
+
+import { useEffect, useState } from "react"
+import { useRouter } from "next/navigation"
 import { Header } from "@/components/layout/header"
 import { Footer } from "@/components/layout/footer"
 import { GlassCard } from "@/components/ui/glass-card"
 import { GradientButton } from "@/components/ui/gradient-button"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
-import { BookOpen, Award, MessageCircle, ArrowRight, CheckCircle, Target } from "lucide-react"
+import { BookOpen, Award, ArrowRight, Target, LogOut } from "lucide-react"
 import Link from "next/link"
 import Image from "next/image"
+import { createClient } from "@/lib/supabase/client"
+import type { User } from "@supabase/supabase-js"
 
-// Mock user data - in real app this would come from database
-const userData = {
-  name: "Анна Петрова",
-  email: "anna@example.com",
-  avatar: "/professional-woman-avatar.png",
-  joinDate: "2024-01-15",
-  totalLearningTime: 45, // hours
-  completedCourses: 2,
-  activeCourses: 3,
-  certificates: 2,
-  currentStreak: 7, // days
-  totalPoints: 1250,
+interface UserProfile {
+  id: string
+  email: string
+  full_name: string
+  avatar_url?: string
+  created_at: string
+  role: string
 }
 
-const enrolledCourses = [
-  {
-    id: "1",
-    title: "Разговорный китайский для поставщиков",
-    progress: 65,
-    totalLessons: 7,
-    completedLessons: 4,
-    lastAccessed: "2024-01-20",
-    nextLesson: "Логистика и доставка",
-    image: "/placeholder-90s8j.png",
-    timeSpent: 8, // hours
-  },
-  {
-    id: "2",
-    title: "Telegram Mini Apps: старт за 7 дней",
-    progress: 30,
-    totalLessons: 10,
-    completedLessons: 3,
-    lastAccessed: "2024-01-18",
-    nextLesson: "Создание интерфейса",
-    image: "/telegram-mini-app-dev.png",
-    timeSpent: 6, // hours
-  },
-  {
-    id: "3",
-    title: "Инженерия промптов: мастерство работы с ИИ",
-    progress: 100,
-    totalLessons: 6,
-    completedLessons: 6,
-    lastAccessed: "2024-01-10",
-    nextLesson: null,
-    image: "/ai-prompt-dashboard.png",
-    timeSpent: 8, // hours
-    completed: true,
-  },
-]
+interface Course {
+  id: string
+  title: string
+  description: string
+  image_url?: string
+  total_lessons: number
+}
 
-const recentActivity = [
-  {
-    type: "lesson_completed",
-    title: "Завершен урок 'Контроль качества'",
-    course: "Разговорный китайский для поставщиков",
-    timestamp: "2 часа назад",
-    points: 50,
-  },
-  {
-    type: "chat_session",
-    title: "Сессия с ИИ-наставником",
-    course: "Telegram Mini Apps",
-    timestamp: "1 день назад",
-    duration: "25 минут",
-  },
-  {
-    type: "certificate_earned",
-    title: "Получен сертификат",
-    course: "Инженерия промптов",
-    timestamp: "3 дня назад",
-    points: 100,
-  },
-  {
-    type: "course_started",
-    title: "Начат новый курс",
-    course: "Разговорный китайский для поставщиков",
-    timestamp: "1 неделя назад",
-    points: 25,
-  },
-]
-
-const achievements = [
-  {
-    id: "first_course",
-    title: "Первый курс",
-    description: "Завершите свой первый курс",
-    icon: "🎓",
-    earned: true,
-    earnedDate: "2024-01-10",
-  },
-  {
-    id: "week_streak",
-    title: "Неделя подряд",
-    description: "Учитесь 7 дней подряд",
-    icon: "🔥",
-    earned: true,
-    earnedDate: "2024-01-20",
-  },
-  {
-    id: "ai_master",
-    title: "Мастер ИИ",
-    description: "Проведите 50 сессий с ИИ-наставником",
-    icon: "🤖",
-    earned: false,
-    progress: 32,
-    target: 50,
-  },
-  {
-    id: "polyglot",
-    title: "Полиглот",
-    description: "Изучите 3 языка",
-    icon: "🌍",
-    earned: false,
-    progress: 1,
-    target: 3,
-  },
-]
+interface UserProgress {
+  course_id: string
+  completed_lessons: number
+  progress_percentage: number
+  last_accessed: string
+  time_spent_hours: number
+}
 
 export default function DashboardPage() {
+  const [user, setUser] = useState<User | null>(null)
+  const [profile, setProfile] = useState<UserProfile | null>(null)
+  const [courses, setCourses] = useState<Course[]>([])
+  const [userProgress, setUserProgress] = useState<UserProgress[]>([])
+  const [loading, setLoading] = useState(true)
+  const router = useRouter()
+  const supabase = createClient()
+
+  useEffect(() => {
+    const getUser = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+
+      if (!user) {
+        router.push("/login")
+        return
+      }
+
+      setUser(user)
+
+      // Get user profile
+      const { data: profileData } = await supabase.from("users").select("*").eq("id", user.id).single()
+
+      if (profileData) {
+        setProfile(profileData)
+      }
+
+      // Get user's enrolled courses
+      const { data: enrollmentsData } = await supabase
+        .from("enrollments")
+        .select(`
+          course_id,
+          completed_lessons,
+          progress_percentage,
+          last_accessed,
+          time_spent_hours,
+          courses (
+            id,
+            title,
+            description,
+            image_url,
+            total_lessons
+          )
+        `)
+        .eq("user_id", user.id)
+
+      if (enrollmentsData) {
+        const coursesData = enrollmentsData.map((enrollment) => enrollment.courses).filter(Boolean)
+        const progressData = enrollmentsData.map((enrollment) => ({
+          course_id: enrollment.course_id,
+          completed_lessons: enrollment.completed_lessons,
+          progress_percentage: enrollment.progress_percentage,
+          last_accessed: enrollment.last_accessed,
+          time_spent_hours: enrollment.time_spent_hours,
+        }))
+
+        setCourses(coursesData as Course[])
+        setUserProgress(progressData)
+      }
+
+      setLoading(false)
+    }
+
+    getUser()
+  }, [router, supabase])
+
+  const handleSignOut = async () => {
+    await supabase.auth.signOut()
+    router.push("/")
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Загрузка...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (!user || !profile) {
+    return null
+  }
+
+  const totalLearningTime = userProgress.reduce((sum, progress) => sum + progress.time_spent_hours, 0)
+  const activeCourses = userProgress.filter((p) => p.progress_percentage < 100).length
+  const completedCourses = userProgress.filter((p) => p.progress_percentage === 100).length
+  const currentStreak = 7 // This would be calculated from actual learning activity
+
   return (
     <div className="min-h-screen">
       <Header />
@@ -136,36 +140,42 @@ export default function DashboardPage() {
         <div className="max-w-7xl mx-auto">
           {/* Welcome Section */}
           <div className="mb-8">
-            <div className="flex items-center gap-4 mb-4">
-              <Image
-                src={userData.avatar || "/placeholder.svg"}
-                alt={userData.name}
-                width={64}
-                height={64}
-                className="rounded-full"
-              />
-              <div>
-                <h1 className="text-3xl font-bold font-sans">Добро пожаловать, {userData.name}!</h1>
-                <p className="text-muted-foreground font-serif">Продолжайте свое обучение с ИИ-наставником</p>
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-4">
+                <Image
+                  src={profile.avatar_url || "/placeholder.svg?height=64&width=64&query=user avatar"}
+                  alt={profile.full_name || "User"}
+                  width={64}
+                  height={64}
+                  className="rounded-full"
+                />
+                <div>
+                  <h1 className="text-3xl font-bold font-sans">Добро пожаловать, {profile.full_name || "Студент"}!</h1>
+                  <p className="text-muted-foreground font-serif">Продолжайте свое обучение с ИИ-наставником</p>
+                </div>
               </div>
+              <Button variant="outline" onClick={handleSignOut} className="bg-white/10 border-white/20">
+                <LogOut className="w-4 h-4 mr-2" />
+                Выйти
+              </Button>
             </div>
 
             {/* Stats Cards */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <GlassCard className="p-4 text-center">
-                <div className="text-2xl font-bold text-primary mb-1">{userData.totalLearningTime}ч</div>
+                <div className="text-2xl font-bold text-primary mb-1">{totalLearningTime}ч</div>
                 <div className="text-sm text-muted-foreground">Время обучения</div>
               </GlassCard>
               <GlassCard className="p-4 text-center">
-                <div className="text-2xl font-bold text-primary mb-1">{userData.activeCourses}</div>
+                <div className="text-2xl font-bold text-primary mb-1">{activeCourses}</div>
                 <div className="text-sm text-muted-foreground">Активных курсов</div>
               </GlassCard>
               <GlassCard className="p-4 text-center">
-                <div className="text-2xl font-bold text-primary mb-1">{userData.certificates}</div>
-                <div className="text-sm text-muted-foreground">Сертификатов</div>
+                <div className="text-2xl font-bold text-primary mb-1">{completedCourses}</div>
+                <div className="text-sm text-muted-foreground">Завершено курсов</div>
               </GlassCard>
               <GlassCard className="p-4 text-center">
-                <div className="text-2xl font-bold text-primary mb-1">{userData.currentStreak}</div>
+                <div className="text-2xl font-bold text-primary mb-1">{currentStreak}</div>
                 <div className="text-sm text-muted-foreground">Дней подряд</div>
               </GlassCard>
             </div>
@@ -177,38 +187,40 @@ export default function DashboardPage() {
               {/* Continue Learning */}
               <section>
                 <h2 className="text-2xl font-bold font-sans mb-6">Продолжить обучение</h2>
-                <div className="space-y-4">
-                  {enrolledCourses
-                    .filter((course) => !course.completed)
-                    .map((course) => (
-                      <GlassCard key={course.id} className="p-6">
-                        <div className="flex items-start gap-4">
-                          <Image
-                            src={course.image || "/placeholder.svg"}
-                            alt={course.title}
-                            width={80}
-                            height={60}
-                            className="rounded-lg object-cover"
-                          />
-                          <div className="flex-1 min-w-0">
-                            <h3 className="font-bold font-sans text-lg mb-2 truncate">{course.title}</h3>
-                            <div className="flex items-center gap-4 text-sm text-muted-foreground mb-3">
-                              <span>
-                                {course.completedLessons} из {course.totalLessons} уроков
-                              </span>
-                              <span>{course.timeSpent}ч изучено</span>
-                            </div>
-                            <div className="mb-4">
-                              <div className="flex items-center justify-between text-sm mb-1">
-                                <span>Прогресс</span>
-                                <span>{course.progress}%</span>
+                {courses.length > 0 ? (
+                  <div className="space-y-4">
+                    {courses.map((course) => {
+                      const progress = userProgress.find((p) => p.course_id === course.id)
+                      if (!progress || progress.progress_percentage === 100) return null
+
+                      return (
+                        <GlassCard key={course.id} className="p-6">
+                          <div className="flex items-start gap-4">
+                            <Image
+                              src={course.image_url || "/placeholder.svg?height=60&width=80&query=course"}
+                              alt={course.title}
+                              width={80}
+                              height={60}
+                              className="rounded-lg object-cover"
+                            />
+                            <div className="flex-1 min-w-0">
+                              <h3 className="font-bold font-sans text-lg mb-2 truncate">{course.title}</h3>
+                              <div className="flex items-center gap-4 text-sm text-muted-foreground mb-3">
+                                <span>
+                                  {progress.completed_lessons} из {course.total_lessons} уроков
+                                </span>
+                                <span>{progress.time_spent_hours}ч изучено</span>
                               </div>
-                              <Progress value={course.progress} className="h-2" />
-                            </div>
-                            {course.nextLesson && (
+                              <div className="mb-4">
+                                <div className="flex items-center justify-between text-sm mb-1">
+                                  <span>Прогресс</span>
+                                  <span>{progress.progress_percentage}%</span>
+                                </div>
+                                <Progress value={progress.progress_percentage} className="h-2" />
+                              </div>
                               <div className="flex items-center justify-between">
                                 <span className="text-sm text-muted-foreground">
-                                  Следующий урок: {course.nextLesson}
+                                  Последний доступ: {new Date(progress.last_accessed).toLocaleDateString("ru-RU")}
                                 </span>
                                 <GradientButton size="sm" asChild>
                                   <Link href={`/learn/${course.id}/next`}>
@@ -217,87 +229,85 @@ export default function DashboardPage() {
                                   </Link>
                                 </GradientButton>
                               </div>
-                            )}
+                            </div>
                           </div>
-                        </div>
-                      </GlassCard>
-                    ))}
-                </div>
+                        </GlassCard>
+                      )
+                    })}
+                  </div>
+                ) : (
+                  <GlassCard className="p-8 text-center">
+                    <BookOpen className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                    <h3 className="font-bold mb-2">Начните свое обучение</h3>
+                    <p className="text-muted-foreground mb-4">
+                      Выберите курс и начните изучение с персональным ИИ-наставником
+                    </p>
+                    <GradientButton asChild>
+                      <Link href="/courses">Выбрать курс</Link>
+                    </GradientButton>
+                  </GlassCard>
+                )}
               </section>
 
-              {/* Recent Activity */}
-              <section>
-                <h2 className="text-2xl font-bold font-sans mb-6">Последняя активность</h2>
-                <GlassCard className="p-6">
+              {/* Completed Courses */}
+              {completedCourses > 0 && (
+                <section>
+                  <h2 className="text-2xl font-bold font-sans mb-6">Завершенные курсы</h2>
                   <div className="space-y-4">
-                    {recentActivity.map((activity, index) => (
-                      <div key={index} className="flex items-start gap-3 pb-4 border-b border-white/10 last:border-b-0">
-                        <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0 mt-1">
-                          {activity.type === "lesson_completed" && <CheckCircle className="w-4 h-4 text-primary" />}
-                          {activity.type === "chat_session" && <MessageCircle className="w-4 h-4 text-primary" />}
-                          {activity.type === "certificate_earned" && <Award className="w-4 h-4 text-primary" />}
-                          {activity.type === "course_started" && <BookOpen className="w-4 h-4 text-primary" />}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="font-medium">{activity.title}</div>
-                          <div className="text-sm text-muted-foreground">{activity.course}</div>
-                          <div className="flex items-center gap-4 text-xs text-muted-foreground mt-1">
-                            <span>{activity.timestamp}</span>
-                            {activity.points && <span>+{activity.points} баллов</span>}
-                            {activity.duration && <span>{activity.duration}</span>}
+                    {courses.map((course) => {
+                      const progress = userProgress.find((p) => p.course_id === course.id)
+                      if (!progress || progress.progress_percentage !== 100) return null
+
+                      return (
+                        <GlassCard key={course.id} className="p-6">
+                          <div className="flex items-start gap-4">
+                            <Image
+                              src={course.image_url || "/placeholder.svg?height=60&width=80&query=course"}
+                              alt={course.title}
+                              width={80}
+                              height={60}
+                              className="rounded-lg object-cover"
+                            />
+                            <div className="flex-1 min-w-0">
+                              <h3 className="font-bold font-sans text-lg mb-2 truncate">{course.title}</h3>
+                              <div className="flex items-center gap-4 text-sm text-muted-foreground mb-3">
+                                <span>✅ Курс завершен</span>
+                                <span>{progress.time_spent_hours}ч изучено</span>
+                              </div>
+                              <div className="flex items-center justify-between">
+                                <span className="text-sm text-green-600">
+                                  Завершен {new Date(progress.last_accessed).toLocaleDateString("ru-RU")}
+                                </span>
+                                <Button size="sm" variant="outline" className="bg-white/10 border-white/20" asChild>
+                                  <Link href={`/certificates/${course.id}`}>
+                                    <Award className="w-4 h-4 mr-1" />
+                                    Сертификат
+                                  </Link>
+                                </Button>
+                              </div>
+                            </div>
                           </div>
-                        </div>
-                      </div>
-                    ))}
+                        </GlassCard>
+                      )
+                    })}
                   </div>
-                </GlassCard>
-              </section>
+                </section>
+              )}
             </div>
 
             {/* Sidebar */}
             <div className="lg:col-span-1 space-y-6">
-              {/* Achievements */}
-              <GlassCard className="p-6">
-                <h3 className="font-bold font-sans mb-4">Достижения</h3>
-                <div className="space-y-3">
-                  {achievements.map((achievement) => (
-                    <div
-                      key={achievement.id}
-                      className={`flex items-center gap-3 p-3 rounded-lg ${
-                        achievement.earned
-                          ? "bg-green-500/10 border border-green-500/20"
-                          : "bg-white/5 border border-white/10"
-                      }`}
-                    >
-                      <div className="text-2xl">{achievement.icon}</div>
-                      <div className="flex-1 min-w-0">
-                        <div className="font-medium text-sm">{achievement.title}</div>
-                        <div className="text-xs text-muted-foreground">{achievement.description}</div>
-                        {!achievement.earned && achievement.progress && (
-                          <div className="mt-1">
-                            <Progress value={(achievement.progress / achievement.target!) * 100} className="h-1" />
-                            <div className="text-xs text-muted-foreground mt-1">
-                              {achievement.progress}/{achievement.target}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </GlassCard>
-
               {/* Learning Streak */}
               <GlassCard className="p-6">
                 <h3 className="font-bold font-sans mb-4">Серия обучения</h3>
                 <div className="text-center">
-                  <div className="text-3xl font-bold text-primary mb-2">{userData.currentStreak}</div>
+                  <div className="text-3xl font-bold text-primary mb-2">{currentStreak}</div>
                   <div className="text-sm text-muted-foreground mb-4">дней подряд</div>
                   <div className="grid grid-cols-7 gap-1">
                     {Array.from({ length: 7 }, (_, i) => (
                       <div
                         key={i}
-                        className={`w-6 h-6 rounded-sm ${i < userData.currentStreak ? "bg-primary" : "bg-white/10"}`}
+                        className={`w-6 h-6 rounded-sm ${i < currentStreak ? "bg-primary" : "bg-white/10"}`}
                       />
                     ))}
                   </div>
@@ -342,18 +352,21 @@ export default function DashboardPage() {
                 </div>
               </GlassCard>
 
-              {/* Recommendations */}
+              {/* User Info */}
               <GlassCard className="p-6">
-                <h3 className="font-bold font-sans mb-4">Рекомендации</h3>
-                <div className="space-y-3">
-                  <div className="p-3 rounded-lg bg-white/5 border border-white/10">
-                    <div className="font-medium text-sm mb-1">Python для автоматизации</div>
-                    <div className="text-xs text-muted-foreground mb-2">
-                      На основе ваших интересов к программированию
-                    </div>
-                    <Button size="sm" variant="outline" className="w-full bg-white/10 border-white/20">
-                      Подробнее
-                    </Button>
+                <h3 className="font-bold font-sans mb-4">Информация о профиле</h3>
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Email:</span>
+                    <span>{profile.email}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Роль:</span>
+                    <span>{profile.role === "ADMIN" ? "Администратор" : "Студент"}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Регистрация:</span>
+                    <span>{new Date(profile.created_at).toLocaleDateString("ru-RU")}</span>
                   </div>
                 </div>
               </GlassCard>

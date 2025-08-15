@@ -4,22 +4,57 @@ import type React from "react"
 
 import { useState } from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { GlassCard } from "@/components/ui/glass-card"
 import { GradientButton } from "@/components/ui/gradient-button"
-import { BookOpen, Mail, Lock, Eye, EyeOff } from "lucide-react"
+import { BookOpen, Mail, Lock, Eye, EyeOff, AlertCircle } from "lucide-react"
+import { createClient } from "@/lib/supabase/client"
 
 export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const router = useRouter()
+  const supabase = createClient()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
-    // TODO: Implement login logic
-    setTimeout(() => setIsLoading(false), 2000)
+    setError(null)
+
+    const formData = new FormData(e.target as HTMLFormElement)
+    const email = formData.get("email") as string
+    const password = formData.get("password") as string
+
+    try {
+      const { data, error: authError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      })
+
+      if (authError) {
+        setError(authError.message)
+        return
+      }
+
+      if (data.user) {
+        // Check user role and redirect accordingly
+        const { data: profile } = await supabase.from("users").select("role").eq("id", data.user.id).single()
+
+        if (profile?.role === "ADMIN") {
+          router.push("/admin")
+        } else {
+          router.push("/dashboard")
+        }
+      }
+    } catch (err) {
+      setError("Произошла ошибка при входе. Попробуйте еще раз.")
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   return (
@@ -41,6 +76,13 @@ export default function LoginPage() {
             <p className="text-muted-foreground font-serif">Войдите в свой аккаунт, чтобы продолжить обучение</p>
           </div>
 
+          {error && (
+            <div className="mb-4 p-3 bg-red-500/10 border border-red-500/20 rounded-lg flex items-center gap-2 text-red-600">
+              <AlertCircle className="w-4 h-4" />
+              <span className="text-sm">{error}</span>
+            </div>
+          )}
+
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
@@ -48,6 +90,7 @@ export default function LoginPage() {
                 <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-5 h-5" />
                 <Input
                   id="email"
+                  name="email"
                   type="email"
                   placeholder="your@email.com"
                   className="pl-10 bg-white/50 border-white/20"
@@ -62,6 +105,7 @@ export default function LoginPage() {
                 <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-5 h-5" />
                 <Input
                   id="password"
+                  name="password"
                   type={showPassword ? "text" : "password"}
                   placeholder="••••••••"
                   className="pl-10 pr-10 bg-white/50 border-white/20"
