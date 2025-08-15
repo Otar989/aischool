@@ -3,17 +3,17 @@ import type { Metadata } from "next"
 import { Inter } from "next/font/google"
 import "./globals.css"
 
-const sfPro = Inter({
-  subsets: ["latin"],
-  display: "swap",
-  variable: "--font-sf-pro",
-  weight: ["400", "500", "600", "700"],
-})
-
 const inter = Inter({
   subsets: ["latin"],
   display: "swap",
   variable: "--font-inter",
+  weight: ["400", "500", "600", "700"],
+})
+
+const interSerif = Inter({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-inter-serif",
 })
 
 export const metadata: Metadata = {
@@ -29,7 +29,7 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="ru" className={`${sfPro.variable} ${inter.variable} antialiased`}>
+    <html lang="ru" className={`${inter.variable} ${interSerif.variable} antialiased`}>
       <body className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-cyan-50">{children}</body>
     </html>
   )
