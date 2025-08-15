@@ -10,7 +10,6 @@ import { Label } from "@/components/ui/label"
 import { GlassCard } from "@/components/ui/glass-card"
 import { GradientButton } from "@/components/ui/gradient-button"
 import { BookOpen, Mail, Lock, User, Eye, EyeOff, AlertCircle, CheckCircle, Loader2 } from "lucide-react"
-import { createClient } from "@/lib/supabase/client"
 
 function SubmitButton({ isLoading }: { isLoading: boolean }) {
   return (
@@ -60,53 +59,20 @@ export default function RegisterPage() {
     }
 
     try {
-      const supabase = createClient()
-
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          emailRedirectTo: process.env.NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL || `${window.location.origin}/dashboard`,
-        },
+      const res = await fetch("/api/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password, name }),
       })
-
-      if (authError) {
-        if (authError.message.includes("User already registered")) {
-          setError("Пользователь с таким email уже зарегистрирован")
-        } else if (authError.message.includes("Invalid email")) {
-          setError("Неверный формат email")
-        } else if (authError.message.includes("Password")) {
-          setError("Пароль слишком слабый. Используйте минимум 6 символов")
-        } else {
-          setError("Ошибка при создании аккаунта: " + authError.message)
-        }
+      const json = await res.json()
+      if (!res.ok) {
+        setError(json.error ?? "Ошибка регистрации")
         return
       }
-
-      if (authData.user) {
-        const { error: dbError } = await supabase.from("users").insert([
-          {
-            id: authData.user.id,
-            email: email,
-            full_name: name,
-            role: "student",
-          },
-        ])
-
-        if (dbError) {
-          console.error("[v0] Database error creating user record:", dbError)
-          // Don't show database error to user, auth user was created successfully
-        }
-
-        if (!authData.session) {
-          setSuccess("Аккаунт создан! Проверьте email для подтверждения регистрации.")
-        } else {
-          setSuccess("Аккаунт создан успешно! Перенаправляем в личный кабинет...")
-          setTimeout(() => {
-            router.push("/dashboard")
-          }, 1500)
-        }
-      }
+      setSuccess("Аккаунт создан! Теперь можно войти.")
+      setTimeout(() => {
+        router.push("/login")
+      }, 1500)
     } catch (err) {
       console.error("[v0] Registration error:", err)
       setError("Произошла ошибка при регистрации. Попробуйте еще раз.")
