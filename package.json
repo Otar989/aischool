@@ -51,6 +51,7 @@
     "lucide-react": "^0.454.0",
     "next": "14.2.16",
     "next-themes": "latest",
+    "pg": "^8.11.3",
     "react": "^18",
     "react-day-picker": "9.8.0",
     "react-dom": "^18",
@@ -67,6 +68,7 @@
     "@types/node": "^22",
     "@types/react": "^18",
     "@types/react-dom": "^18",
+    "@types/pg": "^8.6.6",
     "postcss": "^8.5",
     "tailwindcss": "^3.4.17",
     "typescript": "^5"

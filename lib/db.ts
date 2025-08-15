@@ -1,12 +1,31 @@
 import { createClient } from "@supabase/supabase-js"
+import { Pool } from "pg"
 
-const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+const databaseUrl = process.env.DATABASE_URL
+
+if (!supabaseUrl || !supabaseKey) {
+  console.error("[v0] Missing Supabase configuration")
+  process.exit(1)
+}
+
+if (!databaseUrl) {
+  console.error("[v0] Missing DATABASE_URL environment variable")
+  process.exit(1)
+}
+
+const supabase = createClient(supabaseUrl, supabaseKey)
+const pool = new Pool({ connectionString: databaseUrl })
 
 export async function query(text: string, params?: any[]) {
-  // For compatibility with existing code, we'll simulate the pg result format
-  // This is a temporary bridge - ideally we'd refactor to use Supabase directly
-  console.log("[v0] Raw SQL query not supported with Supabase:", text)
-  return { rows: [] }
+  try {
+    const { rows } = await pool.query(text, params)
+    return { rows }
+  } catch (error) {
+    console.error("[v0] Error executing query:", error)
+    throw error
+  }
 }
 
 export async function getUser(email: string) {
