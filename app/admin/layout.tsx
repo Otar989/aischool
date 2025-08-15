@@ -1,7 +1,6 @@
 import type React from "react"
 import { redirect } from "next/navigation"
 import { requireAuth } from "@/lib/auth"
-import { query } from "@/lib/db"
 import { AdminSidebar } from "@/components/admin/admin-sidebar"
 import { AdminHeader } from "@/components/admin/admin-header"
 
@@ -12,10 +11,7 @@ export default async function AdminLayout({
 }) {
   const user = await requireAuth()
 
-  // Check if user is admin
-  const adminResult = await query("SELECT role FROM users WHERE id = $1 AND role = 'admin'", [user.id])
-
-  if (adminResult.rows.length === 0) {
+  if (user.role !== "ADMIN") {
     redirect("/dashboard")
   }
 
