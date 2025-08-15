@@ -51,15 +51,29 @@ export default function LoginPage() {
       })
 
       if (error) {
-        setError("Неверные учетные данные")
+        if (error.message.includes("Invalid login credentials")) {
+          setError("Неверный email или пароль")
+        } else if (error.message.includes("Email not confirmed")) {
+          setError("Подтвердите email перед входом. Проверьте почту.")
+        } else if (error.message.includes("Invalid email")) {
+          setError("Неверный формат email")
+        } else {
+          setError("Ошибка входа: " + error.message)
+        }
         return
       }
 
       if (data.user) {
+        if (!data.user.email_confirmed_at) {
+          setError("Подтвердите email перед входом. Проверьте почту.")
+          return
+        }
+
         router.push("/dashboard")
       }
     } catch (err) {
-      setError("Произошла ошибка при входе")
+      console.error("[v0] Login error:", err)
+      setError("Произошла ошибка при входе. Попробуйте еще раз.")
     } finally {
       setIsLoading(false)
     }

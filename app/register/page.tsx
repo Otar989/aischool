@@ -53,32 +53,63 @@ export default function RegisterPage() {
       return
     }
 
+    if (password.length < 6) {
+      setError("Пароль должен содержать минимум 6 символов")
+      setIsLoading(false)
+      return
+    }
+
     try {
       const supabase = createClient()
-      const { data, error } = await supabase.auth.signUp({
+
+      const { data: authData, error: authError } = await supabase.auth.signUp({
         email,
         password,
         options: {
-          data: {
-            name,
-          },
           emailRedirectTo: process.env.NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL || `${window.location.origin}/dashboard`,
         },
       })
 
-      if (error) {
-        setError("Ошибка при создании аккаунта: " + error.message)
+      if (authError) {
+        if (authError.message.includes("User already registered")) {
+          setError("Пользователь с таким email уже зарегистрирован")
+        } else if (authError.message.includes("Invalid email")) {
+          setError("Неверный формат email")
+        } else if (authError.message.includes("Password")) {
+          setError("Пароль слишком слабый. Используйте минимум 6 символов")
+        } else {
+          setError("Ошибка при создании аккаунта: " + authError.message)
+        }
         return
       }
 
-      if (data.user) {
-        setSuccess("Аккаунт создан! Проверьте email для подтверждения.")
-        setTimeout(() => {
-          router.push("/login")
-        }, 2000)
+      if (authData.user) {
+        const { error: dbError } = await supabase.from("users").insert([
+          {
+            id: authData.user.id,
+            email: email,
+            full_name: name,
+            role: "student",
+          },
+        ])
+
+        if (dbError) {
+          console.error("[v0] Database error creating user record:", dbError)
+          // Don't show database error to user, auth user was created successfully
+        }
+
+        if (!authData.session) {
+          setSuccess("Аккаунт создан! Проверьте email для подтверждения регистрации.")
+        } else {
+          setSuccess("Аккаунт создан успешно! Перенаправляем в личный кабинет...")
+          setTimeout(() => {
+            router.push("/dashboard")
+          }, 1500)
+        }
       }
     } catch (err) {
-      setError("Произошла ошибка при регистрации")
+      console.error("[v0] Registration error:", err)
+      setError("Произошла ошибка при регистрации. Попробуйте еще раз.")
     } finally {
       setIsLoading(false)
     }
@@ -129,6 +160,7 @@ export default function RegisterPage() {
                   placeholder="Ваше имя"
                   className="pl-10 bg-white/50 border-white/20"
                   required
+                  minLength={2}
                 />
               </div>
             </div>
