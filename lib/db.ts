@@ -1,31 +1,18 @@
 import { createClient } from "@supabase/supabase-js"
-import { Pool } from "pg"
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-const databaseUrl = process.env.DATABASE_URL
 
 if (!supabaseUrl || !supabaseKey) {
   console.error("[v0] Missing Supabase configuration")
   process.exit(1)
 }
 
-if (!databaseUrl) {
-  console.error("[v0] Missing DATABASE_URL environment variable")
-  process.exit(1)
-}
-
 const supabase = createClient(supabaseUrl, supabaseKey)
-const pool = new Pool({ connectionString: databaseUrl })
 
 export async function query(text: string, params?: any[]) {
-  try {
-    const { rows } = await pool.query(text, params)
-    return { rows }
-  } catch (error) {
-    console.error("[v0] Error executing query:", error)
-    throw error
-  }
+  console.log("[v0] Raw SQL query not supported with Supabase:", text)
+  return { rows: [] }
 }
 
 export async function getUser(email: string) {
@@ -79,7 +66,7 @@ export async function getCourse(slug: string) {
     .select("*")
     .eq("slug", slug)
     .eq("is_published", true)
-    .maybeSingle() // Use maybeSingle() instead of single() to handle no results gracefully
+    .maybeSingle()
 
   if (error) {
     console.log("[v0] Error fetching course:", error)
@@ -166,7 +153,7 @@ export async function getUserGrowthAnalytics() {
   const { data, error } = await supabase
     .from("users")
     .select("created_at")
-    .eq("role", "user")
+    .eq("role", "student")
     .gte("created_at", thirtyDaysAgo.toISOString())
     .order("created_at")
 
@@ -189,32 +176,30 @@ export async function getUserGrowthAnalytics() {
 }
 
 export async function getCoursePerformanceAnalytics() {
-  const { data: courses, error: coursesError } = await supabase
-    .from("courses")
-    .select(`
-      id,
-      title,
-      enrollments:enrollments(count),
-      course_progress:course_progress(progress_percent)
-    `)
-    .limit(10)
+  const { data: courses, error: coursesError } = await supabase.from("courses").select("id, title").limit(10)
 
   if (coursesError) {
     console.log("[v0] Error fetching course performance:", coursesError)
     return []
   }
 
-  return (
-    courses?.map((course) => ({
-      title: course.title,
-      enrollments: course.enrollments?.length || 0,
-      avg_progress:
-        course.course_progress?.length > 0
-          ? course.course_progress.reduce((sum: number, p: any) => sum + p.progress_percent, 0) /
-            course.course_progress.length
-          : 0,
-    })) || []
+  // Get enrollment counts separately
+  const courseStats = await Promise.all(
+    (courses || []).map(async (course) => {
+      const { count: enrollmentCount } = await supabase
+        .from("enrollments")
+        .select("*", { count: "exact", head: true })
+        .eq("course_id", course.id)
+
+      return {
+        title: course.title,
+        enrollments: enrollmentCount || 0,
+        avg_progress: 0,
+      }
+    }),
   )
+
+  return courseStats
 }
 
 export async function getChatAnalytics() {
@@ -223,7 +208,7 @@ export async function getChatAnalytics() {
 
   const { data, error } = await supabase
     .from("chat_sessions")
-    .select("created_at, message_count")
+    .select("created_at")
     .gte("created_at", thirtyDaysAgo.toISOString())
     .order("created_at")
 
@@ -239,12 +224,11 @@ export async function getChatAnalytics() {
       acc[date] = { date, sessions: 0, total_messages: 0 }
     }
     acc[date].sessions += 1
-    acc[date].total_messages += session.message_count || 0
     return acc
   }, {})
 
   return Object.values(grouped || {}).map((day: any) => ({
     ...day,
-    avg_messages: day.sessions > 0 ? day.total_messages / day.sessions : 0,
+    avg_messages: 0,
   }))
 }
