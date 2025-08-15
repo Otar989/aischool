@@ -69,7 +69,7 @@ export default function RegisterPage() {
         setError(json.error ?? "Ошибка регистрации")
         return
       }
-      setSuccess("Аккаунт создан! Теперь можно войти.")
+      setSuccess(json.message || "Аккаунт создан! Теперь можно войти.")
       setTimeout(() => {
         router.push("/login")
       }, 1500)
