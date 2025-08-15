@@ -1,46 +1,55 @@
-import { SignJWT, jwtVerify } from "jose"
-import { cookies } from "next/headers"
-
-const secret = new TextEncoder().encode(process.env.JWT_SECRET || "your-secret-key-change-in-production")
+import { createClient } from "@/lib/supabase/server"
+import { redirect } from "next/navigation"
 
 export interface User {
   id: string
   email: string
-  name: string
+  name?: string
   role: "USER" | "ADMIN" | "EDITOR" | "SUPPORT"
   avatar_url?: string
 }
 
-export async function createToken(payload: User) {
-  return await new SignJWT(payload)
-    .setProtectedHeader({ alg: "HS256" })
-    .setIssuedAt()
-    .setExpirationTime("24h")
-    .sign(secret)
-}
+export async function getUser(): Promise<User | null> {
+  const supabase = createClient()
 
-export async function verifyToken(token: string): Promise<User | null> {
   try {
-    const { payload } = await jwtVerify(token, secret)
-    return payload as User
+    const {
+      data: { session },
+      error,
+    } = await supabase.auth.getSession()
+
+    if (error || !session?.user) {
+      return null
+    }
+
+    // Get user profile from database
+    const { data: profile } = await supabase
+      .from("users")
+      .select("id, email, name, role, avatar_url")
+      .eq("id", session.user.id)
+      .single()
+
+    if (!profile) {
+      return null
+    }
+
+    return {
+      id: profile.id,
+      email: profile.email,
+      name: profile.name,
+      role: profile.role || "USER",
+      avatar_url: profile.avatar_url,
+    }
   } catch (error) {
+    console.error("Error getting user:", error)
     return null
   }
-}
-
-export async function getUser(): Promise<User | null> {
-  const cookieStore = await cookies()
-  const token = cookieStore.get("auth-token")?.value
-
-  if (!token) return null
-
-  return await verifyToken(token)
 }
 
 export async function requireAuth(): Promise<User> {
   const user = await getUser()
   if (!user) {
-    throw new Error("Authentication required")
+    redirect("/login")
   }
   return user
 }
@@ -48,7 +57,7 @@ export async function requireAuth(): Promise<User> {
 export async function requireRole(allowedRoles: string[]): Promise<User> {
   const user = await requireAuth()
   if (!allowedRoles.includes(user.role)) {
-    throw new Error("Insufficient permissions")
+    redirect("/")
   }
   return user
 }

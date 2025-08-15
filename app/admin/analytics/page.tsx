@@ -1,56 +1,12 @@
-import { query } from "@/lib/db"
+import { getRevenueAnalytics, getUserGrowthAnalytics, getCoursePerformanceAnalytics, getChatAnalytics } from "@/lib/db"
 import { GlassCard } from "@/components/ui/glass-card"
 import { AnalyticsChart } from "@/components/admin/analytics-chart"
 
 export default async function AnalyticsPage() {
-  // Revenue analytics
-  const revenueData = await query(`
-    SELECT 
-      DATE_TRUNC('day', created_at) as date,
-      SUM(amount_cents) as revenue,
-      COUNT(*) as orders
-    FROM orders 
-    WHERE status = 'paid' AND created_at >= NOW() - INTERVAL '30 days'
-    GROUP BY DATE_TRUNC('day', created_at)
-    ORDER BY date
-  `)
-
-  // User growth
-  const userGrowthData = await query(`
-    SELECT 
-      DATE_TRUNC('day', created_at) as date,
-      COUNT(*) as new_users
-    FROM users 
-    WHERE role = 'user' AND created_at >= NOW() - INTERVAL '30 days'
-    GROUP BY DATE_TRUNC('day', created_at)
-    ORDER BY date
-  `)
-
-  // Course performance
-  const coursePerformance = await query(`
-    SELECT 
-      c.title,
-      COUNT(e.id) as enrollments,
-      AVG(cp.progress_percent) as avg_progress
-    FROM courses c
-    LEFT JOIN enrollments e ON c.id = e.course_id
-    LEFT JOIN course_progress cp ON c.id = cp.course_id
-    GROUP BY c.id, c.title
-    ORDER BY enrollments DESC
-    LIMIT 10
-  `)
-
-  // Chat session analytics
-  const chatAnalytics = await query(`
-    SELECT 
-      DATE_TRUNC('day', created_at) as date,
-      COUNT(*) as sessions,
-      AVG(message_count) as avg_messages
-    FROM chat_sessions 
-    WHERE created_at >= NOW() - INTERVAL '30 days'
-    GROUP BY DATE_TRUNC('day', created_at)
-    ORDER BY date
-  `)
+  const revenueData = await getRevenueAnalytics()
+  const userGrowthData = await getUserGrowthAnalytics()
+  const coursePerformance = await getCoursePerformanceAnalytics()
+  const chatAnalytics = await getChatAnalytics()
 
   return (
     <div className="space-y-6">
@@ -63,7 +19,7 @@ export default async function AnalyticsPage() {
       <GlassCard className="p-6">
         <h3 className="text-lg font-semibold text-white mb-4">Выручка по дням</h3>
         <AnalyticsChart
-          data={revenueData.rows.map((row) => ({
+          data={revenueData.map((row: any) => ({
             date: new Date(row.date).toLocaleDateString("ru-RU"),
             value: row.revenue / 100,
             orders: row.orders,
@@ -77,7 +33,7 @@ export default async function AnalyticsPage() {
         <GlassCard className="p-6">
           <h3 className="text-lg font-semibold text-white mb-4">Рост пользователей</h3>
           <AnalyticsChart
-            data={userGrowthData.rows.map((row) => ({
+            data={userGrowthData.map((row: any) => ({
               date: new Date(row.date).toLocaleDateString("ru-RU"),
               value: Number.parseInt(row.new_users),
             }))}
@@ -89,7 +45,7 @@ export default async function AnalyticsPage() {
         <GlassCard className="p-6">
           <h3 className="text-lg font-semibold text-white mb-4">Активность чата</h3>
           <AnalyticsChart
-            data={chatAnalytics.rows.map((row) => ({
+            data={chatAnalytics.map((row: any) => ({
               date: new Date(row.date).toLocaleDateString("ru-RU"),
               value: Number.parseInt(row.sessions),
               avgMessages: Number.parseFloat(row.avg_messages || 0),
@@ -112,7 +68,7 @@ export default async function AnalyticsPage() {
               </tr>
             </thead>
             <tbody>
-              {coursePerformance.rows.map((course, index) => (
+              {coursePerformance.map((course: any, index: number) => (
                 <tr key={index} className="border-b border-white/5">
                   <td className="py-3 text-white">{course.title}</td>
                   <td className="py-3 text-white">{course.enrollments || 0}</td>
