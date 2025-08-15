@@ -115,7 +115,7 @@ export default function DemoPage() {
                 </p>
                 <div className="flex flex-col sm:flex-row gap-3 justify-center">
                   <GradientButton asChild>
-                    <Link href="/register">
+                    <Link href="/promo">
                       Начать обучение
                       <ArrowRight className="ml-2 w-4 h-4" />
                     </Link>

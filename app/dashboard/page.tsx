@@ -45,17 +45,31 @@ export default function DashboardPage() {
   const [courses, setCourses] = useState<Course[]>([])
   const [userProgress, setUserProgress] = useState<UserProgress[]>([])
   const [loading, setLoading] = useState(true)
+  const [isPromoUser, setIsPromoUser] = useState(false)
   const router = useRouter()
   const supabase = createClient()
 
   useEffect(() => {
     const getUser = async () => {
+      const promoAuth = localStorage.getItem("promo_auth")
+      const promoUserData = localStorage.getItem("promo_user")
+
+      if (promoAuth === "true" && promoUserData) {
+        // User authenticated via promo code
+        const promoProfile = JSON.parse(promoUserData)
+        setProfile(promoProfile)
+        setIsPromoUser(true)
+        setLoading(false)
+        return
+      }
+
+      // Original Supabase authentication logic
       const {
         data: { user },
       } = await supabase.auth.getUser()
 
       if (!user) {
-        router.push("/login")
+        router.push("/promo")
         return
       }
 
@@ -108,8 +122,14 @@ export default function DashboardPage() {
   }, [router, supabase])
 
   const handleSignOut = async () => {
-    await supabase.auth.signOut()
-    router.push("/")
+    if (isPromoUser) {
+      localStorage.removeItem("promo_auth")
+      localStorage.removeItem("promo_user")
+      router.push("/")
+    } else {
+      await supabase.auth.signOut()
+      router.push("/")
+    }
   }
 
   if (loading) {
@@ -123,13 +143,13 @@ export default function DashboardPage() {
     )
   }
 
-  if (!user || !profile) {
+  if (!profile) {
     return null
   }
 
-  const totalLearningTime = userProgress.reduce((sum, progress) => sum + progress.time_spent_hours, 0)
-  const activeCourses = userProgress.filter((p) => p.progress_percentage < 100).length
-  const completedCourses = userProgress.filter((p) => p.progress_percentage === 100).length
+  const totalLearningTime = isPromoUser ? 0 : userProgress.reduce((sum, progress) => sum + progress.time_spent_hours, 0)
+  const activeCourses = isPromoUser ? 0 : userProgress.filter((p) => p.progress_percentage < 100).length
+  const completedCourses = isPromoUser ? 0 : userProgress.filter((p) => p.progress_percentage === 100).length
   const currentStreak = 7 // This would be calculated from actual learning activity
 
   return (
@@ -362,7 +382,7 @@ export default function DashboardPage() {
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Роль:</span>
-                    <span>{profile.role === "ADMIN" ? "Администратор" : "Студент"}</span>
+                    <span>{profile.role === "admin" ? "Администратор" : "Студент"}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Регистрация:</span>

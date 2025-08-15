@@ -197,8 +197,8 @@ export default function LoginPage() {
 
           <p className="text-center text-sm text-muted-foreground mt-6">
             Нет аккаунта?{" "}
-            <Link href="/register" className="text-primary hover:underline font-medium">
-              Зарегистрироваться
+            <Link href="/promo" className="text-primary hover:underline font-medium">
+              Войти по промокоду
             </Link>
           </p>
         </GlassCard>

@@ -38,10 +38,10 @@ export function Header() {
           {/* Desktop Auth Buttons */}
           <div className="hidden md:flex items-center gap-4">
             <Button variant="ghost" asChild>
-              <Link href="/login">Войти</Link>
+              <Link href="/promo">Войти</Link>
             </Button>
             <GradientButton asChild>
-              <Link href="/register">Начать обучение</Link>
+              <Link href="/promo">Начать обучение</Link>
             </GradientButton>
           </div>
 
@@ -66,10 +66,10 @@ export function Header() {
               </Link>
               <div className="flex flex-col gap-2 pt-4 border-t border-white/20">
                 <Button variant="ghost" asChild>
-                  <Link href="/login">Войти</Link>
+                  <Link href="/promo">Войти</Link>
                 </Button>
                 <GradientButton asChild>
-                  <Link href="/register">Начать обучение</Link>
+                  <Link href="/promo">Начать обучение</Link>
                 </GradientButton>
               </div>
             </div>
