@@ -8,9 +8,12 @@ import { Input } from "@/components/ui/input"
 import { Search, Filter, Users, Clock, Star, BookOpen, ArrowRight } from "lucide-react"
 import Link from "next/link"
 import Image from "next/image"
+import { getCourses } from "@/lib/db"
 
-export default function CoursesPage() {
-  const courses = [
+export default async function CoursesPage() {
+  const coursesData = await getCourses()
+
+  const staticCourses = [
     {
       id: 1,
       slug: "chinese-for-suppliers",
@@ -21,7 +24,7 @@ export default function CoursesPage() {
       duration: "12 часов",
       price: "2,990 ₽",
       originalPrice: "4,990 ₽",
-      image: "/placeholder-90s8j.png",
+      image: "/chinese-business-course.png",
       badge: "Хит продаж",
       rating: 4.8,
       students: 1247,
@@ -98,6 +101,24 @@ export default function CoursesPage() {
       inSubscription: true,
     },
   ]
+
+  const courses =
+    coursesData && coursesData.length > 0
+      ? coursesData.map((course) => ({
+          id: course.id,
+          slug: course.slug,
+          title: course.title,
+          description: course.description,
+          level: "Все уровни",
+          duration: "Различная",
+          price: course.price ? `${course.price.toLocaleString()} ₽` : "Бесплатно",
+          image: course.image_url || "/placeholder.svg",
+          badge: "Доступен",
+          rating: 4.8,
+          students: 1000,
+          inSubscription: true,
+        }))
+      : staticCourses
 
   const categories = ["Все курсы", "Языки", "Программирование", "Бизнес", "Маркетинг", "Дизайн", "Аналитика"]
 
