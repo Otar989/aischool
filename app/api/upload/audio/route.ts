@@ -31,11 +31,15 @@ export async function POST(request: NextRequest) {
 
     // Save file record to database
     const result = await query(
-      `INSERT INTO audio_files (user_id, file_url, file_size, mime_type) 
-       VALUES ($1, $2, $3, $4) 
+      `INSERT INTO audio_files (user_id, file_url, file_size, mime_type)
+       VALUES ($1, $2, $3, $4)
        RETURNING id, file_url`,
       [user.id, url, audioFile.size, audioFile.type],
     )
+
+    if (result.rows.length === 0) {
+      return NextResponse.json({ error: "Failed to save audio file" }, { status: 500 })
+    }
 
     return NextResponse.json({
       id: result.rows[0].id,
