@@ -1,7 +1,7 @@
 "use client"
 
-import { useActionState } from "react"
-import { useFormStatus } from "react-dom"
+import type React from "react"
+import { useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
@@ -10,15 +10,12 @@ import { Label } from "@/components/ui/label"
 import { GlassCard } from "@/components/ui/glass-card"
 import { GradientButton } from "@/components/ui/gradient-button"
 import { BookOpen, Mail, Lock, User, Eye, EyeOff, AlertCircle, CheckCircle, Loader2 } from "lucide-react"
-import { signUp } from "@/lib/actions"
-import { useState } from "react"
+import { createClient } from "@/lib/supabase/client"
 
-function SubmitButton() {
-  const { pending } = useFormStatus()
-
+function SubmitButton({ isLoading }: { isLoading: boolean }) {
   return (
-    <GradientButton type="submit" className="w-full" disabled={pending}>
-      {pending ? (
+    <GradientButton type="submit" className="w-full" disabled={isLoading}>
+      {isLoading ? (
         <>
           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
           Создание аккаунта...
@@ -33,8 +30,59 @@ function SubmitButton() {
 export default function RegisterPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState<string | null>(null)
   const router = useRouter()
-  const [state, formAction] = useActionState(signUp, null)
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+    setIsLoading(true)
+    setError(null)
+    setSuccess(null)
+
+    const formData = new FormData(e.currentTarget)
+    const name = formData.get("name") as string
+    const email = formData.get("email") as string
+    const password = formData.get("password") as string
+    const confirmPassword = formData.get("confirmPassword") as string
+
+    if (password !== confirmPassword) {
+      setError("Пароли не совпадают")
+      setIsLoading(false)
+      return
+    }
+
+    try {
+      const supabase = createClient()
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            name,
+          },
+          emailRedirectTo: process.env.NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL || `${window.location.origin}/dashboard`,
+        },
+      })
+
+      if (error) {
+        setError("Ошибка при создании аккаунта: " + error.message)
+        return
+      }
+
+      if (data.user) {
+        setSuccess("Аккаунт создан! Проверьте email для подтверждения.")
+        setTimeout(() => {
+          router.push("/login")
+        }, 2000)
+      }
+    } catch (err) {
+      setError("Произошла ошибка при регистрации")
+    } finally {
+      setIsLoading(false)
+    }
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center px-6 py-12">
@@ -55,21 +103,21 @@ export default function RegisterPage() {
             <p className="text-muted-foreground font-serif">Присоединяйтесь к тысячам студентов уже сегодня</p>
           </div>
 
-          {state?.error && (
+          {error && (
             <div className="mb-4 p-3 bg-red-500/10 border border-red-500/20 rounded-lg flex items-center gap-2 text-red-600">
               <AlertCircle className="w-4 h-4" />
-              <span className="text-sm">{state.error}</span>
+              <span className="text-sm">{error}</span>
             </div>
           )}
 
-          {state?.success && (
+          {success && (
             <div className="mb-4 p-3 bg-green-500/10 border border-green-500/20 rounded-lg flex items-center gap-2 text-green-600">
               <CheckCircle className="w-4 h-4" />
-              <span className="text-sm">{state.success}</span>
+              <span className="text-sm">{success}</span>
             </div>
           )}
 
-          <form action={formAction} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="name">Имя</Label>
               <div className="relative">
@@ -172,7 +220,7 @@ export default function RegisterPage() {
               </span>
             </div>
 
-            <SubmitButton />
+            <SubmitButton isLoading={isLoading} />
           </form>
 
           <div className="mt-6">

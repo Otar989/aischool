@@ -1,7 +1,8 @@
 "use client"
 
-import { useActionState, useEffect } from "react"
-import { useFormStatus } from "react-dom"
+import type React from "react"
+
+import { useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
@@ -10,15 +11,12 @@ import { Label } from "@/components/ui/label"
 import { GlassCard } from "@/components/ui/glass-card"
 import { GradientButton } from "@/components/ui/gradient-button"
 import { BookOpen, Mail, Lock, Eye, EyeOff, AlertCircle, Loader2 } from "lucide-react"
-import { signIn } from "@/lib/actions"
-import { useState } from "react"
+import { createClient } from "@/lib/supabase/client"
 
-function SubmitButton() {
-  const { pending } = useFormStatus()
-
+function SubmitButton({ isLoading }: { isLoading: boolean }) {
   return (
-    <GradientButton type="submit" className="w-full" disabled={pending}>
-      {pending ? (
+    <GradientButton type="submit" className="w-full" disabled={isLoading}>
+      {isLoading ? (
         <>
           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
           Вход...
@@ -32,15 +30,40 @@ function SubmitButton() {
 
 export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const router = useRouter()
-  const [state, formAction] = useActionState(signIn, null)
 
-  // Handle successful login by redirecting
-  useEffect(() => {
-    if (state?.success) {
-      router.push("/dashboard")
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+    setIsLoading(true)
+    setError(null)
+
+    const formData = new FormData(e.currentTarget)
+    const email = formData.get("email") as string
+    const password = formData.get("password") as string
+
+    try {
+      const supabase = createClient()
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      })
+
+      if (error) {
+        setError("Неверные учетные данные")
+        return
+      }
+
+      if (data.user) {
+        router.push("/dashboard")
+      }
+    } catch (err) {
+      setError("Произошла ошибка при входе")
+    } finally {
+      setIsLoading(false)
     }
-  }, [state, router])
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center px-6 py-12">
@@ -61,14 +84,14 @@ export default function LoginPage() {
             <p className="text-muted-foreground font-serif">Войдите в свой аккаунт, чтобы продолжить обучение</p>
           </div>
 
-          {state?.error && (
+          {error && (
             <div className="mb-4 p-3 bg-red-500/10 border border-red-500/20 rounded-lg flex items-center gap-2 text-red-600">
               <AlertCircle className="w-4 h-4" />
-              <span className="text-sm">{state.error}</span>
+              <span className="text-sm">{error}</span>
             </div>
           )}
 
-          <form action={formAction} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
               <div className="relative">
@@ -122,7 +145,7 @@ export default function LoginPage() {
               </Link>
             </div>
 
-            <SubmitButton />
+            <SubmitButton isLoading={isLoading} />
           </form>
 
           <div className="mt-6">
