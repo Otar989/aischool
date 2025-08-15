@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label"
 import { GlassCard } from "@/components/ui/glass-card"
 import { GradientButton } from "@/components/ui/gradient-button"
 import { BookOpen, Mail, Lock, User, Eye, EyeOff, AlertCircle, CheckCircle, Loader2 } from "lucide-react"
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 
 function SubmitButton({ isLoading }: { isLoading: boolean }) {
   return (
@@ -33,6 +34,7 @@ export default function RegisterPage() {
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   const router = useRouter()
+  const supabase = createClientComponentClient()
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -59,20 +61,38 @@ export default function RegisterPage() {
     }
 
     try {
-      const res = await fetch("/api/register", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password, name }),
+      const { data, error: signUpError } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            full_name: name,
+            role: "student",
+          },
+          emailRedirectTo: process.env.NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL || `${window.location.origin}/login`,
+        },
       })
-      const json = await res.json()
-      if (!res.ok) {
-        setError(json.error ?? "Ошибка регистрации")
+
+      if (signUpError) {
+        console.error("[v0] Registration error:", signUpError)
+        if (signUpError.message.includes("already registered")) {
+          setError("Пользователь с таким email уже существует")
+        } else if (signUpError.message.includes("password")) {
+          setError("Пароль не соответствует требованиям безопасности")
+        } else if (signUpError.message.includes("email")) {
+          setError("Неверный формат email адреса")
+        } else {
+          setError(signUpError.message || "Ошибка при создании аккаунта")
+        }
         return
       }
-      setSuccess(json.message || "Аккаунт создан! Теперь можно войти.")
-      setTimeout(() => {
-        router.push("/login")
-      }, 1500)
+
+      if (data.user) {
+        setSuccess("Аккаунт успешно создан! Проверьте email для подтверждения.")
+        setTimeout(() => {
+          router.push("/login")
+        }, 2000)
+      }
     } catch (err) {
       console.error("[v0] Registration error:", err)
       setError("Произошла ошибка при регистрации. Попробуйте еще раз.")
