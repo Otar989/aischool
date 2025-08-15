@@ -8,7 +8,20 @@ export const isSupabaseConfigured =
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY.length > 0
 
 export function createClient() {
-  return createClientComponentClient()
+  if (!isSupabaseConfigured) {
+    console.error("[v0] Supabase environment variables are not configured properly")
+    throw new Error("Supabase is not configured. Please check your environment variables.")
+  }
+
+  try {
+    return createClientComponentClient({
+      supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      supabaseKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    })
+  } catch (error) {
+    console.error("[v0] Error creating Supabase client:", error)
+    throw error
+  }
 }
 
 // Keep backward compatibility with singleton export
