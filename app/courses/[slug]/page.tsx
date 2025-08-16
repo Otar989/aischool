@@ -7,6 +7,7 @@ import { Play, Clock, Users, Star } from "lucide-react"
 import { notFound } from "next/navigation"
 import { getCourse, getLessons } from "@/lib/db"
 import { createClient } from "@supabase/supabase-js"
+import Link from "next/link"
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
@@ -82,14 +83,89 @@ async function createChineseSuppliersCourse() {
   }
 }
 
+async function createCourseWithSlugOne() {
+  try {
+    const { data: existingCourse } = await supabase.from("courses").select("id").eq("slug", "1").single()
+
+    if (existingCourse) {
+      return existingCourse
+    }
+
+    const { data: course, error: courseError } = await supabase
+      .from("courses")
+      .insert({
+        title: "ChatGPT для бизнеса: Автоматизация и продуктивность",
+        slug: "1",
+        description:
+          "Изучите как использовать ChatGPT для автоматизации бизнес-процессов, создания контента и повышения продуктивности команды",
+        price: 4999.0,
+        is_published: true,
+        image_url: "/chinese-business-course.png",
+      })
+      .select()
+      .single()
+
+    if (courseError) {
+      console.error("[v0] Error creating course:", courseError)
+      return null
+    }
+
+    const lessons = [
+      {
+        title: "Введение в ChatGPT для бизнеса",
+        content:
+          "# Урок 1: Введение в ChatGPT для бизнеса\n\n## AI Преподаватель: Анна Смирнова\nДобро пожаловать на курс по использованию ChatGPT в бизнесе! В этом уроке мы изучим основы работы с ChatGPT и его применение в различных бизнес-процессах.\n\n### Ключевые темы:\n- Что такое ChatGPT и как он работает\n- Основные принципы создания промптов\n- Применение в бизнесе\n- Ограничения и этические аспекты\n\n### Практические упражнения:\n1. Создание первого промпта\n2. Анализ качества ответов\n3. AI-чат для отработки навыков",
+        order_index: 1,
+        duration: 20,
+        course_id: course.id,
+        video_url: "/placeholder.mp4",
+      },
+      {
+        title: "Автоматизация клиентского сервиса",
+        content:
+          "# Урок 2: Автоматизация клиентского сервиса\n\n## Создание AI-помощников для поддержки клиентов\n\nВ этом уроке вы научитесь создавать AI-помощников для автоматизации клиентского сервиса.\n\n### Основные возможности:\n- Обработка частых вопросов\n- Создание персонализированных ответов\n- Интеграция с CRM системами\n- Анализ обратной связи\n\n### Практические примеры:\n- Настройка чат-бота для сайта\n- Автоматические ответы в email\n- Обработка отзывов и жалоб",
+        order_index: 2,
+        duration: 25,
+        course_id: course.id,
+      },
+      {
+        title: "Создание контента с помощью AI",
+        content:
+          "# Урок 3: Создание контента с помощью AI\n\n## Генерация текстов, постов и маркетинговых материалов\n\nОсвойте создание качественного контента с помощью ChatGPT.\n\n### Типы контента:\n- Статьи для блога\n- Посты в социальных сетях\n- Email-рассылки\n- Рекламные тексты\n\n### Техники и приемы:\n1. Структурирование промптов\n2. Редактирование и улучшение текстов\n3. Адаптация под целевую аудиторию",
+        order_index: 3,
+        duration: 30,
+        course_id: course.id,
+      },
+    ]
+
+    const { error: lessonsError } = await supabase.from("lessons").insert(lessons)
+
+    if (lessonsError) {
+      console.error("[v0] Error creating lessons:", lessonsError)
+    }
+
+    return course
+  } catch (error) {
+    console.error("[v0] Error in createCourseWithSlugOne:", error)
+    return null
+  }
+}
+
 export default async function CoursePage({ params }: { params: { slug: string } }) {
   const slug = params.slug
+  console.log("[v0] Fetching course with slug:", slug)
 
   let course = await getCourse(slug)
+  console.log("[v0] Course data:", course)
 
   if (!course && slug === "chinese-for-suppliers") {
     console.log("[v0] Course not found, attempting to create...")
     course = await createChineseSuppliersCourse()
+  }
+
+  if (!course && slug === "1") {
+    console.log("[v0] Course with slug '1' not found, attempting to create...")
+    course = await createCourseWithSlugOne()
   }
 
   if (!course) {
@@ -97,21 +173,21 @@ export default async function CoursePage({ params }: { params: { slug: string } 
   }
 
   const lessons = await getLessons(course.id)
-
-  // Server components can't access window/localStorage, so we'll allow access for promo users
-  // The promo authentication is handled at the application level
+  const firstLesson = lessons[0]
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
       <Header />
-      <main className="container mx-auto px-6 py-8">
+      <main className="container mx-auto px-6 py-8 pt-24">
         <div className="max-w-4xl mx-auto">
           {/* Course Header */}
           <GlassCard className="p-8 mb-8">
             <div className="flex flex-col lg:flex-row gap-8">
               <div className="flex-1">
                 <h1 className="text-3xl font-bold font-sans mb-4">{course.title}</h1>
-                <p className="text-lg text-muted-foreground font-serif mb-6">{course.description}</p>
+                <p className="text-lg text-muted-foreground font-serif mb-6 leading-relaxed break-words whitespace-pre-wrap">
+                  {course.description}
+                </p>
 
                 <div className="flex items-center gap-6 mb-6">
                   <div className="flex items-center gap-2">
@@ -136,10 +212,19 @@ export default async function CoursePage({ params }: { params: { slug: string } 
                   <Progress value={0} className="h-2" />
                 </div>
 
-                <Button size="lg" className="w-full sm:w-auto">
-                  <Play className="mr-2 h-5 w-5" />
-                  Начать изучение
-                </Button>
+                {firstLesson ? (
+                  <Link href={`/courses/${slug}/lessons/${firstLesson.id}`}>
+                    <Button size="lg" className="w-full sm:w-auto">
+                      <Play className="mr-2 h-5 w-5" />
+                      Начать изучение
+                    </Button>
+                  </Link>
+                ) : (
+                  <Button size="lg" className="w-full sm:w-auto" disabled>
+                    <Play className="mr-2 h-5 w-5" />
+                    Уроки скоро появятся
+                  </Button>
+                )}
               </div>
 
               <div className="lg:w-80">
@@ -177,9 +262,11 @@ export default async function CoursePage({ params }: { params: { slug: string } 
                       <span className="text-purple-600">🎯 Упражнения</span>
                     </div>
                   </div>
-                  <Button variant="ghost" size="sm">
-                    <Play className="w-4 h-4" />
-                  </Button>
+                  <Link href={`/courses/${slug}/lessons/${lesson.id}`}>
+                    <Button variant="ghost" size="sm">
+                      <Play className="w-4 h-4" />
+                    </Button>
+                  </Link>
                 </div>
               ))}
             </div>

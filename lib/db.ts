@@ -1,14 +1,55 @@
 import { createClient } from "@supabase/supabase-js"
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+let supabase: any
 
-if (!supabaseUrl || !supabaseKey) {
-  console.error("[v0] Missing Supabase configuration")
-  process.exit(1)
+// Check if we're in a browser environment
+if (typeof window !== "undefined") {
+  // Client-side: use public environment variables
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+  if (!supabaseUrl || !supabaseKey) {
+    console.error("[v0] Missing Supabase configuration for client")
+    // Don't use process.exit in browser - just create a dummy client
+    supabase = {
+      from: () => ({
+        select: () => ({
+          eq: () => ({ single: () => Promise.resolve({ data: null, error: new Error("Supabase not configured") }) }),
+        }),
+        insert: () => ({
+          select: () => ({
+            single: () => Promise.resolve({ data: null, error: new Error("Supabase not configured") }),
+          }),
+        }),
+      }),
+    }
+  } else {
+    supabase = createClient(supabaseUrl, supabaseKey)
+  }
+} else {
+  // Server-side: use service role key
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+  if (!supabaseUrl || !supabaseKey) {
+    console.error("[v0] Missing Supabase configuration for server")
+    // Create a dummy client for server-side when not configured
+    supabase = {
+      from: () => ({
+        select: () => ({
+          eq: () => ({ single: () => Promise.resolve({ data: null, error: new Error("Supabase not configured") }) }),
+        }),
+        insert: () => ({
+          select: () => ({
+            single: () => Promise.resolve({ data: null, error: new Error("Supabase not configured") }),
+          }),
+        }),
+      }),
+    }
+  } else {
+    supabase = createClient(supabaseUrl, supabaseKey)
+  }
 }
-
-const supabase = createClient(supabaseUrl, supabaseKey)
 
 export async function query(text: string, params?: any[]) {
   console.log("[v0] Raw SQL query not supported with Supabase:", text)
