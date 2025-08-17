@@ -28,3 +28,16 @@ Continue building your app on:
 2. Deploy your chats from the v0 interface
 3. Changes are automatically pushed to this repository
 4. Vercel deploys the latest version from this repository
+
+## Seeding Data
+
+For development or administrative tasks you may need to populate the database
+with demo content. Use one of the following secured methods:
+
+1. **Server script** – run the provided database seed scripts from your server
+   environment, e.g. `pnpm run db:seed` or the SQL files in `scripts/`.
+2. **Admin endpoint** – start the application with `ENABLE_SEED_COURSE=true` to
+   expose the protected `POST /api/seed-course` route and seed sample courses via
+   an HTTP request. Make sure this flag is disabled in production.
+
+Both approaches avoid exposing the Supabase service-role key to the client.

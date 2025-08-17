@@ -26,6 +26,8 @@ YOOKASSA_SHOP_ID=your_yookassa_shop_id
 # Application
 NEXT_PUBLIC_APP_URL=https://your-domain.com
 NODE_ENV=production
+# Optional: enable seed endpoint
+# ENABLE_SEED_COURSE=true
 
 # Optional: AI Integration
 OPENAI_API_KEY=your_openai_api_key
@@ -61,6 +63,9 @@ OPENAI_API_KEY=your_openai_api_key
    \`\`\`bash
    docker-compose exec app npm run db:seed
    \`\`\`
+
+   # Alternatively, enable the protected seed endpoint:
+   # ENABLE_SEED_COURSE=true docker-compose exec app curl -X POST localhost:3000/api/seed-course
 
 ## Monitoring
 
