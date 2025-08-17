@@ -7,6 +7,7 @@ import { Play, Clock, Users, Star } from "lucide-react"
 import { notFound } from "next/navigation"
 import { getCourse, getLessons } from "@/lib/db"
 import Link from "next/link"
+import Image from "next/image"
 
 export default async function CoursePage({ params }: { params: { slug: string } }) {
   const slug = params.slug
@@ -79,9 +80,11 @@ export default async function CoursePage({ params }: { params: { slug: string } 
               </div>
 
               <div className="lg:w-80">
-                <img
+                <Image
                   src={course.image_url || "/placeholder-848vc.png"}
                   alt={course.title}
+                  width={320}
+                  height={192}
                   className="w-full h-48 object-cover rounded-lg mb-4"
                 />
                 <div className="text-center">
