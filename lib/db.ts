@@ -1,6 +1,6 @@
-import { createClient } from "@supabase/supabase-js"
+import { createClient, SupabaseClient } from "@supabase/supabase-js"
 
-let supabase: any
+let supabase: SupabaseClient
 
 // Check if we're in a browser environment
 if (typeof window !== "undefined") {
@@ -14,7 +14,9 @@ if (typeof window !== "undefined") {
     supabase = {
       from: () => ({
         select: () => ({
-          eq: () => ({ single: () => Promise.resolve({ data: null, error: new Error("Supabase not configured") }) }),
+          eq: () => ({
+            single: () => Promise.resolve({ data: null, error: new Error("Supabase not configured") }),
+          }),
         }),
         insert: () => ({
           select: () => ({
@@ -22,7 +24,7 @@ if (typeof window !== "undefined") {
           }),
         }),
       }),
-    }
+    } as unknown as SupabaseClient
   } else {
     supabase = createClient(supabaseUrl, supabaseKey)
   }
@@ -37,7 +39,9 @@ if (typeof window !== "undefined") {
     supabase = {
       from: () => ({
         select: () => ({
-          eq: () => ({ single: () => Promise.resolve({ data: null, error: new Error("Supabase not configured") }) }),
+          eq: () => ({
+            single: () => Promise.resolve({ data: null, error: new Error("Supabase not configured") }),
+          }),
         }),
         insert: () => ({
           select: () => ({
@@ -45,7 +49,7 @@ if (typeof window !== "undefined") {
           }),
         }),
       }),
-    }
+    } as unknown as SupabaseClient
   } else {
     supabase = createClient(supabaseUrl, supabaseKey)
   }

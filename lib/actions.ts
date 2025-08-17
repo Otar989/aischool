@@ -4,15 +4,27 @@ import { createServerActionClient } from "@supabase/auth-helpers-nextjs"
 import { cookies } from "next/headers"
 import { redirect } from "next/navigation"
 
-export async function signIn(prevState: any, formData: FormData) {
+interface AuthActionState {
+  error?: string
+  success?: boolean | string
+}
+
+interface AuthFormData {
+  email: string
+  password: string
+}
+
+export async function signIn(
+  _prevState: AuthActionState,
+  formData: FormData,
+): Promise<AuthActionState> {
   console.log("[v0] SignIn action called")
 
   if (!formData) {
     return { error: "Form data is missing" }
   }
 
-  const email = formData.get("email")
-  const password = formData.get("password")
+  const { email, password } = Object.fromEntries(formData) as Partial<AuthFormData>
 
   if (!email || !password) {
     return { error: "Email and password are required" }
@@ -42,15 +54,17 @@ export async function signIn(prevState: any, formData: FormData) {
   }
 }
 
-export async function signUp(prevState: any, formData: FormData) {
+export async function signUp(
+  _prevState: AuthActionState,
+  formData: FormData,
+): Promise<AuthActionState> {
   console.log("[v0] SignUp action called")
 
   if (!formData) {
     return { error: "Form data is missing" }
   }
 
-  const email = formData.get("email")
-  const password = formData.get("password")
+  const { email, password } = Object.fromEntries(formData) as Partial<AuthFormData>
 
   if (!email || !password) {
     return { error: "Email and password are required" }
