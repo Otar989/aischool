@@ -23,6 +23,7 @@ import { notFound } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import Link from "next/link"
 import { useState, useEffect, useRef } from "react"
+import { toast } from "sonner"
 
 interface Course {
   id: string
@@ -197,7 +198,7 @@ export default function LessonPage({
 
       setTimeout(() => {
         const score = Math.floor(Math.random() * 20) + 80 // 80-100%
-        alert(
+        toast.success(
           `Запись завершена! Ваше произношение оценено на ${score}%. ${score >= 90 ? "Отлично!" : score >= 80 ? "Хорошо!" : "Продолжайте практиковаться!"}`,
         )
       }, 500)
@@ -237,7 +238,7 @@ export default function LessonPage({
         ? "Отличный развернутый ответ! AI преподаватель оценил ваше понимание материала."
         : "Хороший ответ! Попробуйте добавить больше деталей в следующий раз."
 
-    alert(`Упражнение отправлено! ${feedback}`)
+    toast.success(`Упражнение отправлено! ${feedback}`)
     setExerciseAnswer("")
     setCurrentExercise(getExerciseQuestion(lesson?.title || ""))
   }
