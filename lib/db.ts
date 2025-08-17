@@ -1,6 +1,23 @@
 import { createClient, SupabaseClient } from "@supabase/supabase-js"
+import { Pool, QueryResult } from "pg"
 
 let supabase: SupabaseClient
+
+let pool: Pool | null = null
+
+function getPool() {
+  if (pool) return pool
+  const connectionString = process.env.DATABASE_URL
+  if (!connectionString) {
+    throw new Error("Database connection string not configured")
+  }
+  pool = new Pool({ connectionString })
+  return pool
+}
+
+export function __setPool(newPool: Pool) {
+  pool = newPool
+}
 
 // Check if we're in a browser environment
 if (typeof window !== "undefined") {
@@ -55,9 +72,14 @@ if (typeof window !== "undefined") {
   }
 }
 
-export async function query(text: string, params?: any[]) {
-  console.log("[v0] Raw SQL query not supported with Supabase:", text)
-  return { rows: [] }
+export async function query(text: string, params: any[] = []): Promise<QueryResult> {
+  try {
+    const db = getPool()
+    return await db.query(text, params)
+  } catch (err: any) {
+    console.error("[db] Query error", err)
+    throw new Error(err?.message || "Database query failed")
+  }
 }
 
 export async function getUser(email: string) {
