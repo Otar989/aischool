@@ -8,69 +8,100 @@ export async function POST() {
     return NextResponse.json({ error: "Seeding disabled" }, { status: 403 })
   }
   try {
-    // Check if course already exists
-    const { data: existingCourse } = await supabase
-      .from("courses")
-      .select("id")
-      .eq("slug", "chinese-for-suppliers")
-      .single()
-
-    if (existingCourse) {
-      return NextResponse.json({ message: "Course already exists" })
-    }
-
-    // Create the course
-    const { data: course, error: courseError } = await supabase
-      .from("courses")
-      .insert({
-        title: "Chinese for Suppliers",
-        slug: "chinese-for-suppliers",
+    const testCourses = [
+      {
+        title: "ChatGPT для бизнеса: Автоматизация и продуктивность",
+        slug: "chatgpt-business",
         description:
-          "Learn essential Chinese phrases and business vocabulary for working with suppliers in China. Perfect for procurement professionals and business owners.",
-        price: 99.99,
-        is_published: true,
-        image_url: "/placeholder-hz4hk.png",
-      })
-      .select()
-      .single()
-
-    if (courseError) {
-      console.error("[v0] Error creating course:", courseError)
-      return NextResponse.json({ error: "Failed to create course" }, { status: 500 })
-    }
-
-    // Create sample lessons
-    const lessons = [
-      {
-        title: "Introduction to Chinese Business Culture",
-        content: "Learn the basics of Chinese business etiquette and cultural norms when working with suppliers.",
-        order_index: 1,
-        duration: 15,
-        course_id: course.id,
+          "Изучите как использовать ChatGPT для автоматизации бизнес-процессов, создания контента и повышения продуктивности команды",
+        price: 4999,
+        image_url: "/business-automation.png",
       },
       {
-        title: "Essential Supplier Communication Phrases",
-        content: "Master key phrases for negotiating prices, discussing quality, and managing timelines.",
-        order_index: 2,
-        duration: 20,
-        course_id: course.id,
+        title: "NFT и OpenSea: торговля цифровыми активами",
+        slug: "nft-opensea-trading",
+        description:
+          "Полный гид по торговле NFT на OpenSea. От создания кошелька до продвинутых стратегий инвестирования",
+        price: 2999,
+        image_url: "/nft-trading-concept.png",
       },
       {
-        title: "Product Specifications and Quality Control",
-        content: "Learn how to communicate technical requirements and quality standards in Chinese.",
-        order_index: 3,
-        duration: 25,
-        course_id: course.id,
+        title: "React и Next.js: современная разработка 2025",
+        slug: "react-nextjs-2025",
+        description:
+          "Изучите современный стек React и Next.js с TypeScript, Tailwind CSS и лучшими практиками 2025 года",
+        price: 5999,
+        image_url: "/react-nextjs-development.png",
       },
     ]
 
-    const { error: lessonsError } = await supabase.from("lessons").insert(lessons)
+    const createdCourses = []
 
-    if (lessonsError) {
-      console.error("[v0] Error creating lessons:", lessonsError)
+    for (const courseData of testCourses) {
+      // Check if course already exists
+      const { data: existingCourse } = await supabase.from("courses").select("id").eq("slug", courseData.slug).single()
+
+      if (existingCourse) {
+        console.log(`[v0] Course ${courseData.slug} already exists`)
+        continue
+      }
+
+      // Create the course
+      const { data: course, error: courseError } = await supabase
+        .from("courses")
+        .insert({
+          ...courseData,
+          is_published: true,
+        })
+        .select()
+        .single()
+
+      if (courseError) {
+        console.error(`[v0] Error creating course ${courseData.slug}:`, courseError)
+        continue
+      }
+
+      // Create sample lessons for each course
+      const lessons = [
+        {
+          title: `Введение в ${courseData.title.split(":")[0]}`,
+          content: `Основы работы с ${courseData.title.split(":")[0]}. Изучите базовые концепции и принципы.`,
+          order_index: 1,
+          duration: 15,
+          course_id: course.id,
+          is_published: true,
+        },
+        {
+          title: "Практические примеры",
+          content: "Разберите реальные кейсы и примеры применения изученного материала.",
+          order_index: 2,
+          duration: 20,
+          course_id: course.id,
+          is_published: true,
+        },
+        {
+          title: "Продвинутые техники",
+          content: "Изучите продвинутые методы и лучшие практики для профессионального применения.",
+          order_index: 3,
+          duration: 25,
+          course_id: course.id,
+          is_published: true,
+        },
+      ]
+
+      const { error: lessonsError } = await supabase.from("lessons").insert(lessons)
+
+      if (lessonsError) {
+        console.error(`[v0] Error creating lessons for ${courseData.slug}:`, lessonsError)
+      }
+
+      createdCourses.push(course)
     }
 
-    return NextResponse.json({ message: "Course created successfully", course })
+    return NextResponse.json({
+      message: `Successfully created ${createdCourses.length} courses`,
+      courses: createdCourses,
+    })
   } catch (error) {
     console.error("[v0] Seed course error:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })

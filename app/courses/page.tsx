@@ -1,4 +1,3 @@
-import React from "react"
 import { Header } from "@/components/layout/header"
 import { Footer } from "@/components/layout/footer"
 import { GlassCard } from "@/components/ui/glass-card"
@@ -20,20 +19,27 @@ export default async function CoursesPage({
   const q = searchParams?.q || ""
   const pageSize = 12
   const offset = (page - 1) * pageSize
-  const coursesData = await getCourses(q, pageSize, offset)
+
+  let coursesData = []
+  try {
+    coursesData = await getCourses(q, pageSize, offset)
+  } catch (error) {
+    console.error("[v0] Error fetching courses:", error)
+    coursesData = []
+  }
 
   const staticCourses = [
     {
       id: 1,
-      slug: "chinese-for-suppliers",
-      title: "Разговорный китайский для поставщиков: 7 ситуаций",
+      slug: "chatgpt-business",
+      title: "ChatGPT для бизнеса: Автоматизация и продуктивность",
       description:
-        "Практический курс китайского языка для работы с поставщиками. Изучите ключевые фразы и ситуации для успешного ведения бизнеса.",
+        "Изучите как использовать ChatGPT для автоматизации бизнес-процессов, создания контента и повышения продуктивности команды",
       level: "Начальный",
       duration: "12 часов",
-      price: "2,990 ₽",
-      originalPrice: "4,990 ₽",
-      image: "/chinese-business-course.png",
+      price: "4,999 ₽",
+      originalPrice: "6,999 ₽",
+      image: "/business-automation.png",
       badge: "Хит продаж",
       rating: 4.8,
       students: 1247,
@@ -41,13 +47,14 @@ export default async function CoursesPage({
     },
     {
       id: 2,
-      slug: "telegram-mini-apps",
-      title: "Telegram Mini Apps: старт за 7 дней",
-      description: "Создайте свое первое мини-приложение для Telegram с нуля. От идеи до публикации в App Store.",
+      slug: "nft-opensea-trading",
+      title: "NFT и OpenSea: торговля цифровыми активами",
+      description:
+        "Полный гид по торговле NFT на OpenSea. От создания кошелька до продвинутых стратегий инвестирования",
       level: "Средний",
-      duration: "20 часов",
-      price: "4,990 ₽",
-      image: "/telegram-mini-app-dev.png",
+      duration: "8 часов",
+      price: "2,999 ₽",
+      image: "/nft-trading-concept.png",
       badge: "Новинка",
       rating: 4.9,
       students: 856,
@@ -55,13 +62,13 @@ export default async function CoursesPage({
     },
     {
       id: 3,
-      slug: "ai-prompt-engineering",
-      title: "Инженерия промптов: мастерство работы с ИИ",
-      description: "Научитесь создавать эффективные промпты для получения лучших результатов от ИИ-систем.",
+      slug: "react-nextjs-2025",
+      title: "React и Next.js: современная разработка 2025",
+      description: "Изучите современный стек React и Next.js с TypeScript, Tailwind CSS и лучшими практиками 2025 года",
       level: "Продвинутый",
-      duration: "8 часов",
-      price: "1,990 ₽",
-      image: "/ai-prompt-dashboard.png",
+      duration: "16 часов",
+      price: "5,999 ₽",
+      image: "/react-nextjs-development.png",
       badge: "Эксклюзив",
       rating: 4.7,
       students: 2134,
@@ -120,11 +127,11 @@ export default async function CoursesPage({
           description: course.description,
           level: "Все уровни",
           duration: "Различная",
-          price: course.price ? `${course.price.toLocaleString()} ₽` : "Бесплатно",
+          price: course.price ? `${Math.round(course.price).toLocaleString()} ₽` : "Бесплатно",
           image: course.image_url || "/placeholder.svg",
           badge: "Доступен",
           rating: 4.8,
-          students: 1000,
+          students: Math.floor(Math.random() * 2000) + 500,
           inSubscription: true,
         }))
       : staticCourses
