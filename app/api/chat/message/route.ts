@@ -8,14 +8,37 @@ import { z } from "zod"
 const messageSchema = z.object({
   sessionId: z.string().uuid(),
   text: z.string().optional(),
-  audioUrl: z.string().url().optional(),
 })
+
+export const config = {
+  api: {
+    bodyParser: {
+      sizeLimit: "50mb",
+    },
+  },
+}
+
+export const maxDuration = 300
 
 export async function POST(request: NextRequest) {
   try {
     const user = await requireAuth()
-    const body = await request.json()
-    const { sessionId, text, audioUrl } = messageSchema.parse(body)
+    const contentType = request.headers.get("content-type") || ""
+
+    let sessionId: string
+    let text: string | undefined
+    let audioFile: File | null = null
+
+    if (contentType.includes("multipart/form-data")) {
+      const formData = await request.formData()
+      sessionId = (formData.get("sessionId") as string) || ""
+      text = formData.get("text")?.toString()
+      audioFile = formData.get("audio") as File | null
+      messageSchema.parse({ sessionId, text })
+    } else {
+      const body = await request.json()
+      ;({ sessionId, text } = messageSchema.parse(body))
+    }
 
     // Verify session belongs to user
     const sessionResult = await query("SELECT * FROM chat_sessions WHERE id = $1 AND user_id = $2", [
@@ -45,10 +68,10 @@ export async function POST(request: NextRequest) {
     let messageText = text
     let modality = "text"
 
-    // If audio URL provided, transcribe it
-    if (audioUrl) {
+    // If audio file provided, transcribe it
+    if (audioFile) {
       try {
-        messageText = await transcribeAudio(audioUrl)
+        messageText = await transcribeAudio(audioFile)
         modality = "voice"
       } catch (error) {
         console.error("Transcription error:", error)

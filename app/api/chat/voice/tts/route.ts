@@ -5,8 +5,13 @@ import { z } from "zod"
 
 const ttsSchema = z.object({
   text: z.string().min(1).max(1000),
-  voice: z.enum(["alloy", "echo", "fable", "onyx", "nova", "shimmer"]).optional().default("nova"),
+  voice: z
+    .enum(["alloy", "echo", "fable", "onyx", "nova", "shimmer"])
+    .optional()
+    .default("nova"),
 })
+
+export const maxDuration = 300
 
 export async function POST(request: NextRequest) {
   try {
@@ -14,11 +19,12 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { text, voice } = ttsSchema.parse(body)
 
-    const audioUrl = await generateSpeech(text, voice)
+    const audioBuffer = await generateSpeech(text, voice)
 
-    return NextResponse.json({
-      audioUrl,
-      text,
+    return new NextResponse(audioBuffer, {
+      headers: {
+        "Content-Type": "audio/mpeg",
+      },
     })
   } catch (error) {
     console.error("Error generating speech:", error)
