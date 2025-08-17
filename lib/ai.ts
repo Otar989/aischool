@@ -54,7 +54,11 @@ interface Question {
   type: string
   prompt: string
   correct_answer?: string
-  rubric_json?: any
+  rubric_json?: Rubric
+}
+
+interface Rubric {
+  points?: number
 }
 
 export async function gradeAnswer(question: Question, answer: string) {
