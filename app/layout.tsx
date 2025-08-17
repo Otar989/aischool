@@ -2,6 +2,7 @@ import type React from "react"
 import type { Metadata } from "next"
 import { Inter } from "next/font/google"
 import "./globals.css"
+import { Toaster } from "sonner"
 
 const inter = Inter({
   subsets: ["latin"],
@@ -30,7 +31,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ru" className={`${inter.variable} ${interSerif.variable} antialiased`}>
-      <body className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-cyan-50">{children}</body>
+      <body className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-cyan-50">
+        {children}
+        <Toaster position="top-right" richColors />
+      </body>
     </html>
   )
 }

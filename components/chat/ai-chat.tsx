@@ -6,6 +6,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { GradientButton } from "@/components/ui/gradient-button"
 import { VoiceRecorder } from "./voice-recorder"
 import { Send, Volume2, VolumeX, Loader2 } from "lucide-react"
+import { toast } from "sonner"
 
 interface ChatMessage {
   role: "user" | "assistant" | "system"
@@ -30,6 +31,7 @@ export function AIChat({ sessionId, onMessageSent }: AIChatProps) {
   const [inputMessage, setInputMessage] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [isSpeaking, setIsSpeaking] = useState(false)
+  const [isAudioLoading, setIsAudioLoading] = useState(false)
   const chatEndRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -40,6 +42,8 @@ export function AIChat({ sessionId, onMessageSent }: AIChatProps) {
     if (!content.trim() && !audioBlob) return
 
     setIsLoading(true)
+
+    let assistantMessage: ChatMessage | null = null
 
     try {
       let audioUrl: string | undefined
@@ -84,31 +88,60 @@ export function AIChat({ sessionId, onMessageSent }: AIChatProps) {
         }),
       })
 
-      if (!response.ok) {
+      if (!response.ok || !response.body) {
         throw new Error("Failed to send message")
       }
 
-      const { message: aiMessage } = await response.json()
-
-      const assistantMessage: ChatMessage = {
+      assistantMessage = {
         role: "assistant",
-        content: aiMessage.content,
-        timestamp: new Date(aiMessage.timestamp),
+        content: "",
+        timestamp: new Date(),
       }
 
-      setMessages((prev) => [...prev, assistantMessage])
-      onMessageSent?.(assistantMessage)
+      setMessages((prev) => [...prev, assistantMessage!])
+
+      const reader = response.body.getReader()
+      const decoder = new TextDecoder()
+      let done = false
+      let aiContent = ""
+
+      while (!done) {
+        const { value, done: doneReading } = await reader.read()
+        done = doneReading
+        const chunk = decoder.decode(value || new Uint8Array(), { stream: true })
+        aiContent += chunk
+        const updatedMessage = { ...assistantMessage, content: aiContent }
+        setMessages((prev) => {
+          const newMessages = [...prev]
+          newMessages[newMessages.length - 1] = updatedMessage
+          return newMessages
+        })
+      }
+
+      const finalMessage = { ...assistantMessage, content: aiContent }
+      onMessageSent?.(finalMessage)
     } catch (error) {
       console.error("Error sending message:", error)
-      // Add error message
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: "assistant",
-          content: "Извините, произошла ошибка. Попробуйте еще раз.",
-          timestamp: new Date(),
-        },
-      ])
+      toast.error("Не удалось отправить сообщение")
+      setMessages((prev) => {
+        const newMessages = [...prev]
+        if (assistantMessage) {
+          newMessages[newMessages.length - 1] = {
+            role: "assistant",
+            content: "Извините, произошла ошибка. Попробуйте еще раз.",
+            timestamp: new Date(),
+          }
+          return newMessages
+        }
+        return [
+          ...newMessages,
+          {
+            role: "assistant",
+            content: "Извините, произошла ошибка. Попробуйте еще раз.",
+            timestamp: new Date(),
+          },
+        ]
+      })
     } finally {
       setIsLoading(false)
     }
@@ -123,9 +156,9 @@ export function AIChat({ sessionId, onMessageSent }: AIChatProps) {
   }
 
   const handlePlayAudio = async (text: string) => {
-    if (isSpeaking) return
+    if (isSpeaking || isAudioLoading) return
 
-    setIsSpeaking(true)
+    setIsAudioLoading(true)
     try {
       const response = await fetch("/api/chat/voice/tts", {
         method: "POST",
@@ -135,16 +168,32 @@ export function AIChat({ sessionId, onMessageSent }: AIChatProps) {
         body: JSON.stringify({ text }),
       })
 
-      if (response.ok) {
-        const { audioUrl } = await response.json()
-        const audio = new Audio(audioUrl)
-        audio.onended = () => setIsSpeaking(false)
-        audio.onerror = () => setIsSpeaking(false)
-        await audio.play()
+      if (!response.ok) {
+        throw new Error("Failed to fetch audio")
       }
+
+      const arrayBuffer = await response.arrayBuffer()
+      const audioType = response.headers.get("Content-Type") || "audio/mpeg"
+      const audioUrl = URL.createObjectURL(new Blob([arrayBuffer], { type: audioType }))
+
+      const audio = new Audio(audioUrl)
+      audio.onended = () => {
+        setIsSpeaking(false)
+        URL.revokeObjectURL(audioUrl)
+      }
+      audio.onerror = () => {
+        setIsSpeaking(false)
+        URL.revokeObjectURL(audioUrl)
+        toast.error("Не удалось воспроизвести аудио")
+      }
+
+      setIsSpeaking(true)
+      await audio.play()
     } catch (error) {
       console.error("Error playing audio:", error)
-      setIsSpeaking(false)
+      toast.error("Не удалось воспроизвести аудио")
+    } finally {
+      setIsAudioLoading(false)
     }
   }
 
@@ -161,7 +210,14 @@ export function AIChat({ sessionId, onMessageSent }: AIChatProps) {
                   : "bg-white/10 backdrop-blur-sm border border-white/20"
               }`}
             >
-              <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+              {message.content ? (
+                <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span className="text-sm">ИИ-наставник печатает...</span>
+                </div>
+              )}
               <div className="flex items-center justify-between mt-2">
                 <span className="text-xs opacity-70">
                   {message.timestamp.toLocaleTimeString("ru-RU", {
@@ -169,32 +225,27 @@ export function AIChat({ sessionId, onMessageSent }: AIChatProps) {
                     minute: "2-digit",
                   })}
                 </span>
-                {message.role === "assistant" && (
+                {message.role === "assistant" && message.content && (
                   <Button
                     variant="ghost"
                     size="sm"
                     className="h-6 px-2 text-xs ml-2"
                     onClick={() => handlePlayAudio(message.content)}
-                    disabled={isSpeaking}
+                    disabled={isSpeaking || isAudioLoading}
                   >
-                    {isSpeaking ? <VolumeX className="w-3 h-3" /> : <Volume2 className="w-3 h-3" />}
+                    {isAudioLoading ? (
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                    ) : isSpeaking ? (
+                      <VolumeX className="w-3 h-3" />
+                    ) : (
+                      <Volume2 className="w-3 h-3" />
+                    )}
                   </Button>
                 )}
               </div>
             </div>
           </div>
         ))}
-
-        {isLoading && (
-          <div className="flex justify-start">
-            <div className="bg-white/10 backdrop-blur-sm border border-white/20 px-4 py-3 rounded-lg">
-              <div className="flex items-center gap-2">
-                <Loader2 className="w-4 h-4 animate-spin" />
-                <span className="text-sm">ИИ-наставник печатает...</span>
-              </div>
-            </div>
-          </div>
-        )}
 
         <div ref={chatEndRef} />
       </div>
