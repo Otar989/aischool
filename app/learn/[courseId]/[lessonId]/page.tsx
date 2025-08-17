@@ -32,13 +32,10 @@ export default function LessonPage({ params }: { params: { courseId: string; les
   const [isRecording, setIsRecording] = useState(false)
   const [isSpeaking, setIsSpeaking] = useState(false)
   const [chatMessage, setChatMessage] = useState("")
-  const [chatHistory, setChatHistory] = useState([
-    {
-      role: "assistant" as const,
-      content: "Привет! Я ваш ИИ-наставник. Готовы изучать китайский язык? Давайте начнем с основ приветствия!",
-      timestamp: new Date(),
-    },
-  ])
+  const [chatHistory, setChatHistory] = useState<
+    { role: "assistant" | "user"; content: string; timestamp: Date }[]
+  >([])
+  const [sessionId, setSessionId] = useState<string | null>(null)
   const [isCompleting, setIsCompleting] = useState(false)
 
   const chatEndRef = useRef<HTMLDivElement>(null)
@@ -64,6 +61,28 @@ export default function LessonPage({ params }: { params: { courseId: string; les
         if (!lessonData.hasAccess && !lessonData.is_demo) {
           router.push(`/courses/${params.courseId}`)
           return
+        }
+
+        try {
+          const sessionRes = await fetch("/api/chat/session/start", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ courseId: params.courseId, lessonId: params.lessonId }),
+          })
+          if (sessionRes.ok) {
+            const sessionData = await sessionRes.json()
+            setSessionId(sessionData.sessionId)
+            setChatHistory([
+              {
+                role: "assistant",
+                content:
+                  "Привет! Я ваш ИИ-наставник. Готовы изучать новый материал? Если у вас есть вопросы по уроку, смело задавайте их!",
+                timestamp: new Date(),
+              },
+            ])
+          }
+        } catch (err) {
+          console.error("Error starting chat session:", err)
         }
       } catch (error) {
         console.error("Error fetching lesson:", error)
@@ -103,7 +122,7 @@ export default function LessonPage({ params }: { params: { courseId: string; les
   }
 
   const handleSendMessage = async () => {
-    if (!chatMessage.trim()) return
+    if (!chatMessage.trim() || !sessionId) return
 
     const userMessage = {
       role: "user" as const,
@@ -118,17 +137,14 @@ export default function LessonPage({ params }: { params: { courseId: string; les
       const response = await fetch("/api/chat/message", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          message: chatMessage,
-          lessonId: params.lessonId,
-          courseId: params.courseId,
-        }),
+        body: JSON.stringify({ sessionId, text: chatMessage }),
       })
 
       const data = await response.json()
       const aiResponse = {
         role: "assistant" as const,
-        content: data.response || "Извините, произошла ошибка. Попробуйте еще раз.",
+        content:
+          data.message?.content || "Извините, произошла ошибка. Попробуйте еще раз.",
         timestamp: new Date(),
       }
       setChatHistory((prev) => [...prev, aiResponse])

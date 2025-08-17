@@ -62,9 +62,17 @@ export async function POST(request: NextRequest) {
 
     // Save user message
     await query(
-      `INSERT INTO chat_messages (session_id, role, modality, content_text, tokens_used, created_at) 
-       VALUES ($1, $2, $3, $4, $5, NOW())`,
-      [sessionId, "user", modality, messageText, estimateTokens(messageText)],
+      `INSERT INTO chat_messages (session_id, user_id, lesson_id, role, modality, content_text, tokens_used, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())`,
+      [
+        sessionId,
+        user.id,
+        session.lesson_id,
+        "user",
+        modality,
+        messageText,
+        estimateTokens(messageText),
+      ],
     )
 
     // Get conversation history
@@ -88,9 +96,17 @@ export async function POST(request: NextRequest) {
 
     // Save AI response
     await query(
-      `INSERT INTO chat_messages (session_id, role, modality, content_text, tokens_used, created_at) 
-       VALUES ($1, $2, $3, $4, $5, NOW())`,
-      [sessionId, "assistant", "text", aiResponse.content, aiResponse.tokensUsed],
+      `INSERT INTO chat_messages (session_id, user_id, lesson_id, role, modality, content_text, tokens_used, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())`,
+      [
+        sessionId,
+        user.id,
+        session.lesson_id,
+        "assistant",
+        "text",
+        aiResponse.content,
+        aiResponse.tokensUsed,
+      ],
     )
 
     // Update session token count
@@ -123,7 +139,36 @@ async function getLessonContext(lessonId: string) {
   }
 
   const lesson = lessonResult.rows[0]
-  return `Урок: ${lesson.title}\n\nМатериал урока:\n${lesson.content_md}`
+
+  // Try to fetch additional materials and hints
+  let materials: string[] = []
+  try {
+    const materialsResult = await query(
+      "SELECT content FROM lesson_materials WHERE lesson_id = $1 ORDER BY order_index",
+      [lessonId],
+    )
+    materials = materialsResult.rows.map((r) => r.content)
+  } catch (err) {
+    console.error("Error fetching lesson materials:", err)
+  }
+
+  let hints: string[] = []
+  try {
+    const hintsResult = await query(
+      "SELECT hint FROM lesson_hints WHERE lesson_id = $1 ORDER BY order_index",
+      [lessonId],
+    )
+    hints = hintsResult.rows.map((r) => r.hint)
+  } catch (err) {
+    console.error("Error fetching lesson hints:", err)
+  }
+
+  const materialsText = materials.length
+    ? `\n\nДополнительные материалы:\n${materials.join("\n")}`
+    : ""
+  const hintsText = hints.length ? `\n\nПодсказки:\n${hints.join("\n")}` : ""
+
+  return `Урок: ${lesson.title}\n\nМатериал урока:\n${lesson.content_md}${materialsText}${hintsText}`
 }
 
 function estimateTokens(text: string): number {
