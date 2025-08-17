@@ -36,23 +36,35 @@ export async function POST(request: NextRequest) {
 
     // Add initial system message
     await query(
-      `INSERT INTO chat_messages (session_id, role, content_text, created_at) 
-       VALUES ($1, $2, $3, NOW())`,
+      `INSERT INTO chat_messages (session_id, user_id, lesson_id, role, modality, content_text, tokens_used, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())`,
       [
         session.id,
+        user.id,
+        lessonId,
         "system",
+        "text",
         `Вы ИИ-наставник для урока. Ведите диалог дружелюбно, но строго. Помогайте студенту изучать материал, задавайте наводящие вопросы, не давайте готовые ответы сразу.`,
+        estimateTokens(
+          "Вы ИИ-наставник для урока. Ведите диалог дружелюбно, но строго. Помогайте студенту изучать материал, задавайте наводящие вопросы, не давайте готовые ответы сразу.",
+        ),
       ],
     )
 
     // Add welcome message
     await query(
-      `INSERT INTO chat_messages (session_id, role, content_text, created_at) 
-       VALUES ($1, $2, $3, NOW())`,
+      `INSERT INTO chat_messages (session_id, user_id, lesson_id, role, modality, content_text, tokens_used, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())`,
       [
         session.id,
+        user.id,
+        lessonId,
         "assistant",
+        "text",
         `Привет! Я ваш ИИ-наставник. Готовы изучать новый материал? Если у вас есть вопросы по уроку, смело задавайте их!`,
+        estimateTokens(
+          "Привет! Я ваш ИИ-наставник. Готовы изучать новый материал? Если у вас есть вопросы по уроку, смело задавайте их!",
+        ),
       ],
     )
 
@@ -84,4 +96,9 @@ async function checkCourseAccess(userId: string, courseId: string): Promise<bool
   ])
 
   return enrollmentResult.rows.length > 0
+}
+
+function estimateTokens(text: string): number {
+  // Rough estimation: 1 token ≈ 4 characters for Russian text
+  return Math.ceil(text.length / 4)
 }
