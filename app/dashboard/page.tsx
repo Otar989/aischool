@@ -102,7 +102,10 @@ export default function DashboardPage() {
         .eq("user_id", user.id)
 
       if (enrollmentsData) {
-        const coursesData = enrollmentsData.map((enrollment) => enrollment.courses).filter(Boolean)
+          const coursesData = enrollmentsData
+            .map((enrollment) => enrollment.courses)
+            .filter(Boolean)
+            .flat() as Course[]
         const progressData = enrollmentsData.map((enrollment) => ({
           course_id: enrollment.course_id,
           completed_lessons: enrollment.completed_lessons,
@@ -111,7 +114,7 @@ export default function DashboardPage() {
           time_spent_hours: enrollment.time_spent_hours,
         }))
 
-        setCourses(coursesData as Course[])
+          setCourses(coursesData)
         setUserProgress(progressData)
       }
 

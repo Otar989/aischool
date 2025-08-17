@@ -2,7 +2,7 @@ import { cn } from "@/lib/utils"
 import { Button, type ButtonProps } from "@/components/ui/button"
 import { forwardRef } from "react"
 
-export interface GradientButtonProps extends ButtonProps {
+export interface GradientButtonProps extends Omit<ButtonProps, "variant"> {
   variant?: "primary" | "secondary" | "glass"
 }
 

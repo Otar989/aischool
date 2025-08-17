@@ -24,6 +24,12 @@ import {
 import Link from "next/link"
 import { notFound, useRouter } from "next/navigation"
 
+type ChatMessage = {
+  role: "assistant" | "user"
+  content: string
+  timestamp: Date
+}
+
 export default function LessonPage({ params }: { params: { courseId: string; lessonId: string } }) {
   const [lesson, setLesson] = useState<any>(null)
   const [loading, setLoading] = useState(true)
@@ -32,9 +38,9 @@ export default function LessonPage({ params }: { params: { courseId: string; les
   const [isRecording, setIsRecording] = useState(false)
   const [isSpeaking, setIsSpeaking] = useState(false)
   const [chatMessage, setChatMessage] = useState("")
-  const [chatHistory, setChatHistory] = useState([
+  const [chatHistory, setChatHistory] = useState<ChatMessage[]>([
     {
-      role: "assistant" as const,
+      role: "assistant",
       content: "Привет! Я ваш ИИ-наставник. Готовы изучать китайский язык? Давайте начнем с основ приветствия!",
       timestamp: new Date(),
     },

@@ -20,7 +20,7 @@ export default async function AdminLayout({
       <div className="flex">
         <AdminSidebar />
         <div className="flex-1 flex flex-col">
-          <AdminHeader user={user} />
+          <AdminHeader user={user as any} />
           <main className="flex-1 p-6">{children}</main>
         </div>
       </div>

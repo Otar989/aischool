@@ -34,7 +34,7 @@ export default async function CoursesPage() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {courses.rows.map((course) => (
+        {courses.rows.map((course: any) => (
           <GlassCard key={course.id} className="p-6">
             <div className="flex items-start justify-between mb-4">
               <Badge
