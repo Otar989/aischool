@@ -1,4 +1,5 @@
 import { createClient, SupabaseClient } from "@supabase/supabase-js"
+import { logger } from "@/lib/logger"
 
 let supabase: SupabaseClient
 
@@ -9,7 +10,7 @@ if (typeof window !== "undefined") {
   const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
   if (!supabaseUrl || !supabaseKey) {
-    console.error("[v0] Missing Supabase configuration for client")
+    logger.error("[v0] Missing Supabase configuration for client")
     // Don't use process.exit in browser - just create a dummy client
     supabase = {
       from: () => ({
@@ -34,7 +35,7 @@ if (typeof window !== "undefined") {
   const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
   if (!supabaseUrl || !supabaseKey) {
-    console.error("[v0] Missing Supabase configuration for server")
+    logger.error("[v0] Missing Supabase configuration for server")
     // Create a dummy client for server-side when not configured
     supabase = {
       from: () => ({
@@ -56,7 +57,7 @@ if (typeof window !== "undefined") {
 }
 
 export async function query(text: string, params?: any[]) {
-  console.log("[v0] Raw SQL query not supported with Supabase:", text)
+  logger.warn({ text }, "[v0] Raw SQL query not supported with Supabase")
   return { rows: [] }
 }
 
@@ -68,7 +69,7 @@ export async function getUser(email: string) {
     .single()
 
   if (error) {
-    console.log("[v0] Error fetching user:", error)
+    logger.error({ err: error }, "[v0] Error fetching user")
     return null
   }
   return data
@@ -82,7 +83,7 @@ export async function createUser(email: string, name: string, passwordHash: stri
     .single()
 
   if (error) {
-    console.log("[v0] Error creating user:", error)
+    logger.error({ err: error }, "[v0] Error creating user")
     throw error
   }
   return data
@@ -97,14 +98,14 @@ export async function getCourses(limit = 20, offset = 0) {
     .range(offset, offset + limit - 1)
 
   if (error) {
-    console.log("[v0] Error fetching courses:", error)
+    logger.error({ err: error }, "[v0] Error fetching courses")
     return []
   }
   return data || []
 }
 
 export async function getCourse(slug: string) {
-  console.log("[v0] Fetching course with slug:", slug)
+  logger.debug({ slug }, "[v0] Fetching course with slug")
 
   const { data, error } = await supabase
     .from("courses")
@@ -114,11 +115,11 @@ export async function getCourse(slug: string) {
     .maybeSingle()
 
   if (error) {
-    console.log("[v0] Error fetching course:", error)
+    logger.error({ err: error }, "[v0] Error fetching course")
     return null
   }
 
-  console.log("[v0] Course data:", data)
+  logger.debug({ data }, "[v0] Course data")
   return data
 }
 
@@ -130,7 +131,7 @@ export async function getLessons(courseId: string) {
     .order("order_index", { ascending: true })
 
   if (error) {
-    console.log("[v0] Error fetching lessons:", error)
+    logger.error({ err: error }, "[v0] Error fetching lessons")
     return []
   }
   return data || []
@@ -173,7 +174,7 @@ export async function getRevenueAnalytics() {
     .order("created_at")
 
   if (error) {
-    console.log("[v0] Error fetching revenue analytics:", error)
+    logger.error({ err: error }, "[v0] Error fetching revenue analytics")
     return []
   }
 
@@ -203,7 +204,7 @@ export async function getUserGrowthAnalytics() {
     .order("created_at")
 
   if (error) {
-    console.log("[v0] Error fetching user growth:", error)
+    logger.error({ err: error }, "[v0] Error fetching user growth")
     return []
   }
 
@@ -224,7 +225,7 @@ export async function getCoursePerformanceAnalytics() {
   const { data: courses, error: coursesError } = await supabase.from("courses").select("id, title").limit(10)
 
   if (coursesError) {
-    console.log("[v0] Error fetching course performance:", coursesError)
+    logger.error({ err: coursesError }, "[v0] Error fetching course performance")
     return []
   }
 
@@ -258,7 +259,7 @@ export async function getChatAnalytics() {
     .order("created_at")
 
   if (error) {
-    console.log("[v0] Error fetching chat analytics:", error)
+    logger.error({ err: error }, "[v0] Error fetching chat analytics")
     return []
   }
 

@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
+import { logger } from "@/lib/logger"
 
 export interface User {
   id: string
@@ -41,7 +42,7 @@ export async function getUser(): Promise<User | null> {
       avatar_url: profile.avatar_url,
     }
   } catch (error) {
-    console.error("Error getting user:", error)
+    logger.error({ err: error }, "Error getting user")
     return null
   }
 }

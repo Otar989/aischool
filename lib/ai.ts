@@ -1,3 +1,5 @@
+import { logger } from "@/lib/logger"
+
 interface ConversationMessage {
   role: "system" | "user" | "assistant"
   content: string
@@ -41,7 +43,7 @@ export async function generateAIResponse(
       tokensUsed: Math.floor(Math.random() * 100) + 50,
     }
   } catch (error) {
-    console.error("Error generating AI response:", error)
+    logger.error({ err: error }, "Error generating AI response")
     return {
       content: "Извините, произошла техническая ошибка. Попробуйте задать вопрос еще раз.",
       tokensUsed: 0,
@@ -106,7 +108,7 @@ export async function gradeAnswer(question: Question, answer: string) {
       suggestions,
     }
   } catch (error) {
-    console.error("Error grading answer:", error)
+    logger.error({ err: error }, "Error grading answer")
     return {
       score: 0,
       feedback: "Произошла ошибка при проверке ответа. Попробуйте еще раз.",

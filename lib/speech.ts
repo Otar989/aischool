@@ -1,3 +1,5 @@
+import { logger } from "@/lib/logger"
+
 export async function transcribeAudio(audioUrl: string): Promise<string> {
   // Simulate transcription delay
   await new Promise((resolve) => setTimeout(resolve, 2000))
@@ -14,7 +16,7 @@ export async function transcribeAudio(audioUrl: string): Promise<string> {
 
     return mockTranscriptions[Math.floor(Math.random() * mockTranscriptions.length)]
   } catch (error) {
-    console.error("Error transcribing audio:", error)
+    logger.error({ err: error }, "Error transcribing audio")
     throw new Error("Failed to transcribe audio")
   }
 }
@@ -26,12 +28,12 @@ export async function generateSpeech(text: string, voice = "nova"): Promise<stri
   try {
     // For demo purposes, return a placeholder audio URL
     // In a real implementation, this would generate actual speech
-    console.log(`[Mock] Generating speech for: "${text}" with voice: ${voice}`)
+    logger.debug({ voice }, `[Mock] Generating speech`)
 
     // Return a placeholder audio file URL (you could use a real audio file here)
     return "/placeholder-audio.mp3"
   } catch (error) {
-    console.error("Error generating speech:", error)
+    logger.error({ err: error }, "Error generating speech")
     throw new Error("Failed to generate speech")
   }
 }

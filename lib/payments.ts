@@ -1,3 +1,5 @@
+import { logger } from "@/lib/logger"
+
 interface CheckoutParams {
   orderId: string
   amount: number
@@ -65,7 +67,7 @@ export async function createYooKassaPayment({
 
   if (!response.ok) {
     const errorText = await response.text()
-    console.error("YooKassa API error:", errorText)
+    logger.error({ err: errorText }, "YooKassa API error")
     throw new Error("Failed to create YooKassa payment")
   }
 

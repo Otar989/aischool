@@ -1,4 +1,5 @@
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
+import { logger } from "@/lib/logger"
 
 // Check if Supabase environment variables are available
 export const isSupabaseConfigured =
@@ -9,7 +10,7 @@ export const isSupabaseConfigured =
 
 export function createClient() {
   if (!isSupabaseConfigured) {
-    console.error("[v0] Supabase environment variables are not configured properly")
+    logger.error("[v0] Supabase environment variables are not configured properly")
     throw new Error("Supabase is not configured. Please check your environment variables.")
   }
 
@@ -19,7 +20,7 @@ export function createClient() {
       supabaseKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     })
   } catch (error) {
-    console.error("[v0] Error creating Supabase client:", error)
+    logger.error({ err: error }, "[v0] Error creating Supabase client")
     throw error
   }
 }

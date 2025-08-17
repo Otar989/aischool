@@ -3,6 +3,7 @@
 import { createServerActionClient } from "@supabase/auth-helpers-nextjs"
 import { cookies } from "next/headers"
 import { redirect } from "next/navigation"
+import { logger, maskEmail } from "@/lib/logger"
 
 interface AuthActionState {
   error?: string
@@ -18,7 +19,7 @@ export async function signIn(
   _prevState: AuthActionState,
   formData: FormData,
 ): Promise<AuthActionState> {
-  console.log("[v0] SignIn action called")
+  logger.debug("[v0] SignIn action called")
 
   if (!formData) {
     return { error: "Form data is missing" }
@@ -34,7 +35,7 @@ export async function signIn(
   const supabase = createServerActionClient({ cookies: () => cookieStore })
 
   try {
-    console.log("[v0] Attempting to sign in user:", email)
+    logger.debug({ email: maskEmail(email.toString()) }, "[v0] Attempting to sign in user")
 
     const { error } = await supabase.auth.signInWithPassword({
       email: email.toString(),
@@ -42,14 +43,14 @@ export async function signIn(
     })
 
     if (error) {
-      console.log("[v0] Sign in error:", error.message)
+      logger.error({ err: error }, "[v0] Sign in error")
       return { error: error.message }
     }
 
-    console.log("[v0] Sign in successful")
+    logger.info("[v0] Sign in successful")
     return { success: true }
   } catch (error) {
-    console.error("[v0] Login error:", error)
+    logger.error({ err: error }, "[v0] Login error")
     return { error: "An unexpected error occurred. Please try again." }
   }
 }
@@ -58,7 +59,7 @@ export async function signUp(
   _prevState: AuthActionState,
   formData: FormData,
 ): Promise<AuthActionState> {
-  console.log("[v0] SignUp action called")
+  logger.debug("[v0] SignUp action called")
 
   if (!formData) {
     return { error: "Form data is missing" }
@@ -74,7 +75,7 @@ export async function signUp(
   const supabase = createServerActionClient({ cookies: () => cookieStore })
 
   try {
-    console.log("[v0] Attempting to sign up user:", email)
+    logger.debug({ email: maskEmail(email.toString()) }, "[v0] Attempting to sign up user")
 
     const { error } = await supabase.auth.signUp({
       email: email.toString(),
@@ -86,14 +87,14 @@ export async function signUp(
     })
 
     if (error) {
-      console.log("[v0] Sign up error:", error.message)
+      logger.error({ err: error }, "[v0] Sign up error")
       return { error: error.message }
     }
 
-    console.log("[v0] Sign up successful")
+    logger.info("[v0] Sign up successful")
     return { success: "Check your email to confirm your account." }
   } catch (error) {
-    console.error("[v0] Sign up error:", error)
+    logger.error({ err: error }, "[v0] Sign up error")
     return { error: "An unexpected error occurred. Please try again." }
   }
 }
