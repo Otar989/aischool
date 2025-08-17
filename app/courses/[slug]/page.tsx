@@ -81,8 +81,14 @@ export default async function CoursePage({ params }: { params: { slug: string } 
                   className="w-full h-48 object-cover rounded-lg mb-4"
                 />
                 <div className="text-center">
-                  <div className="text-2xl font-bold text-green-600 mb-1">₽{course.price}</div>
-                  <div className="text-sm text-muted-foreground line-through">₽149</div>
+                  <div className="text-2xl font-bold text-green-600 mb-1">
+                    ₽{Number(course.price).toLocaleString("ru-RU")}
+                  </div>
+                  {course.original_price && (
+                    <div className="text-sm text-muted-foreground line-through">
+                      ₽{Number(course.original_price).toLocaleString("ru-RU")}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
