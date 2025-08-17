@@ -168,7 +168,7 @@ SELECT
 
 ## Основные библиотеки Python
 
-```python
+\`\`\`python
 import os
 import shutil
 import pandas as pd
