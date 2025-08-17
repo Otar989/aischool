@@ -41,3 +41,12 @@ with demo content. Use one of the following secured methods:
    an HTTP request. Make sure this flag is disabled in production.
 
 Both approaches avoid exposing the Supabase service-role key to the client.
+
+## Supabase Configuration
+
+The course modules rely on Supabase for data. Configure the following environment variables (see `.env.example` for ready-to-use values):
+
+- `SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY`
