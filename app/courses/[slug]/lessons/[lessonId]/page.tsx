@@ -24,6 +24,25 @@ import { createClient } from "@/lib/supabase/client"
 import Link from "next/link"
 import { useState, useEffect, useRef } from "react"
 
+interface Course {
+  id: string
+  title: string
+}
+
+interface Lesson {
+  id: string
+  title: string
+  duration: number
+  content: string
+  order_index: number
+  course_id: string
+}
+
+interface Exercise {
+  question: string
+  hint?: string
+}
+
 const supabase = createClient()
 
 const getAIResponse = (message: string, lessonTitle: string) => {
@@ -91,9 +110,9 @@ export default function LessonPage({
   params: { slug: string; lessonId: string }
 }) {
   const { slug, lessonId } = params
-  const [course, setCourse] = useState<any>(null)
-  const [lesson, setLesson] = useState<any>(null)
-  const [lessons, setLessons] = useState<any[]>([])
+  const [course, setCourse] = useState<Course | null>(null)
+  const [lesson, setLesson] = useState<Lesson | null>(null)
+  const [lessons, setLessons] = useState<Lesson[]>([])
   const [loading, setLoading] = useState(true)
 
   const [chatOpen, setChatOpen] = useState(false)
@@ -105,7 +124,7 @@ export default function LessonPage({
   const [exerciseAnswer, setExerciseAnswer] = useState("")
 
   const [currentPhrase, setCurrentPhrase] = useState("")
-  const [currentExercise, setCurrentExercise] = useState<any>(null)
+  const [currentExercise, setCurrentExercise] = useState<Exercise | null>(null)
   const [isPlaying, setIsPlaying] = useState(false)
   const [recordingTime, setRecordingTime] = useState(0)
   const [aiTyping, setAiTyping] = useState(false)
@@ -119,17 +138,17 @@ export default function LessonPage({
         .select("*")
         .eq("slug", slug)
         .eq("is_published", true)
-        .maybeSingle()
+        .maybeSingle<Course>()
       if (!courseData) {
         notFound()
         return
       }
 
-      const { data: lessonsData } = await supabase
+      const { data: lessonsData } = (await supabase
         .from("lessons")
         .select("*")
         .eq("course_id", courseData.id)
-        .order("order_index", { ascending: true })
+        .order("order_index", { ascending: true })) as { data: Lesson[] | null }
 
       const lessonData = lessonsData?.find((l) => l.id === lessonId)
       if (!lessonData) {
