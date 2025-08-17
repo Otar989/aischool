@@ -32,6 +32,11 @@ NODE_ENV=production
 
 # Optional: AI Integration
 OPENAI_API_KEY=your_openai_api_key
+OPENAI_API_BASE_URL=https://api.openai.com/v1
+OPENAI_TTS_MODEL=gpt-4o-mini-tts
+OPENAI_TTS_VOICE=nova
+NEXT_PUBLIC_OPENAI_TTS_MODEL=gpt-4o-mini-tts
+NEXT_PUBLIC_OPENAI_TTS_VOICE=nova
 \`\`\`
 
 ## Deployment Steps
@@ -47,6 +52,7 @@ OPENAI_API_KEY=your_openai_api_key
    cp .env.example .env.production
    # Edit .env.production with your values
    \`\`\`
+   Docker Compose loads this file via `env_file`, keeping secrets out of version control.
 
 3. **Setup SSL certificates:**
    \`\`\`bash
