@@ -37,9 +37,14 @@ export async function POST(request: NextRequest) {
     const userMessageCount =
       messageCount.rows.length > 0 ? Number.parseInt(messageCount.rows[0].count) : 0
     const maxMessages = Number.parseInt(process.env.MAX_MESSAGES_PER_LESSON || "50")
+    const maxTokens = Number.parseInt(process.env.MAX_TOKENS_PER_LESSON || "100000")
 
     if (userMessageCount >= maxMessages) {
       return NextResponse.json({ error: "Message limit reached for this lesson" }, { status: 429 })
+    }
+
+    if (session.total_tokens >= maxTokens) {
+      return NextResponse.json({ error: "Token limit reached for this lesson" }, { status: 429 })
     }
 
     let messageText = text
@@ -60,12 +65,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Message content is required" }, { status: 400 })
     }
 
+    const promptTokens = estimateTokens(messageText)
+
     // Save user message
     await query(
-      `INSERT INTO chat_messages (session_id, role, modality, content_text, tokens_used, created_at) 
+      `INSERT INTO chat_messages (session_id, role, modality, content_text, tokens_used, created_at)
        VALUES ($1, $2, $3, $4, $5, NOW())`,
-      [sessionId, "user", modality, messageText, estimateTokens(messageText)],
+      [sessionId, "user", modality, messageText, promptTokens],
     )
+
+    if (session.total_tokens + promptTokens >= maxTokens) {
+      return NextResponse.json({ error: "Token limit reached for this lesson" }, { status: 429 })
+    }
 
     // Get conversation history
     const historyResult = await query(
@@ -84,7 +95,20 @@ export async function POST(request: NextRequest) {
     const lessonContext = await getLessonContext(session.lesson_id)
 
     // Generate AI response
-    const aiResponse = await generateAIResponse(conversationHistory, lessonContext)
+    let aiResponse
+    try {
+      aiResponse = await generateAIResponse(conversationHistory, lessonContext)
+    } catch (error: any) {
+      console.error("AI response error:", error)
+      if (error?.status === 429) {
+        return NextResponse.json({ error: "AI rate limit exceeded" }, { status: 429 })
+      }
+      return NextResponse.json({ error: "Failed to generate AI response" }, { status: 500 })
+    }
+
+    if (session.total_tokens + aiResponse.tokensUsed > maxTokens) {
+      return NextResponse.json({ error: "Token limit reached for this lesson" }, { status: 429 })
+    }
 
     // Save AI response
     await query(
@@ -95,10 +119,10 @@ export async function POST(request: NextRequest) {
 
     // Update session token count
     await query(
-      `UPDATE chat_sessions 
-       SET total_tokens = total_tokens + $1 
+      `UPDATE chat_sessions
+       SET total_tokens = total_tokens + $1
        WHERE id = $2`,
-      [estimateTokens(messageText) + aiResponse.tokensUsed, sessionId],
+      [aiResponse.tokensUsed, sessionId],
     )
 
     return NextResponse.json({

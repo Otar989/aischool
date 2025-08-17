@@ -1,3 +1,5 @@
+import OpenAI from "openai"
+
 interface ConversationMessage {
   role: "system" | "user" | "assistant"
   content: string
@@ -8,44 +10,35 @@ interface AIResponse {
   tokensUsed: number
 }
 
-// Mock AI responses for demonstration
-const mockResponses = [
-  "Отличный вопрос! Давайте разберем это пошагово. Что вы уже знаете по этой теме?",
-  "Хорошо! Вы на правильном пути. Попробуйте подумать о практическом применении этого концепта.",
-  "Не совсем правильно, но близко! Подсказка: обратите внимание на ключевые слова в задании.",
-  "Превосходно! Вы отлично понимаете материал. Давайте перейдем к более сложному вопросу.",
-  "Интересная мысль! Можете ли вы привести конкретный пример для иллюстрации?",
-]
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
 
 export async function generateAIResponse(
   conversationHistory: ConversationMessage[],
   lessonContext: string,
 ): Promise<AIResponse> {
-  // Simulate API delay
-  await new Promise((resolve) => setTimeout(resolve, 1000 + Math.random() * 2000))
-
   try {
-    // Simple mock logic based on conversation
-    const lastMessage = conversationHistory[conversationHistory.length - 1]
-    let response = mockResponses[Math.floor(Math.random() * mockResponses.length)]
+    const messages = [
+      {
+        role: "system" as const,
+        content: `Ты обучающий ассистент. Используй контекст урока для ответов.\n${lessonContext}`,
+      },
+      ...conversationHistory,
+    ]
 
-    // Add some context-aware responses
-    if (lastMessage?.content.toLowerCase().includes("не понимаю")) {
-      response = "Понимаю, что это может быть сложно. Давайте разберем по частям. Начнем с основ..."
-    } else if (lastMessage?.content.toLowerCase().includes("спасибо")) {
-      response = "Пожалуйста! Рад помочь. Есть ли еще вопросы по этой теме?"
-    }
+    const completion = await openai.chat.completions.create({
+      model: process.env.OPENAI_MODEL || "gpt-4o-mini",
+      messages,
+    })
+
+    const content = completion.choices[0]?.message?.content ?? ""
 
     return {
-      content: response,
-      tokensUsed: Math.floor(Math.random() * 100) + 50,
+      content,
+      tokensUsed: completion.usage?.total_tokens ?? 0,
     }
   } catch (error) {
     console.error("Error generating AI response:", error)
-    return {
-      content: "Извините, произошла техническая ошибка. Попробуйте задать вопрос еще раз.",
-      tokensUsed: 0,
-    }
+    throw error
   }
 }
 
