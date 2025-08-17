@@ -1,9 +1,12 @@
-import { createClient } from "@supabase/supabase-js"
 import { NextResponse } from "next/server"
+import { createAdminClient } from "@/lib/supabase/admin"
 
-const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+const supabase = createAdminClient()
 
 export async function POST() {
+  if (process.env.ENABLE_SEED_COURSE !== "true") {
+    return NextResponse.json({ error: "Seeding disabled" }, { status: 403 })
+  }
   try {
     // Check if course already exists
     const { data: existingCourse } = await supabase

@@ -20,12 +20,11 @@ import {
   Pause,
 } from "lucide-react"
 import { notFound } from "next/navigation"
-import { getCourse, getLessons } from "@/lib/db"
-import { createClient } from "@supabase/supabase-js"
+import { createClient } from "@/lib/supabase/client"
 import Link from "next/link"
 import { useState, useEffect, useRef } from "react"
 
-const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+const supabase = createClient()
 
 const getAIResponse = (message: string, lessonTitle: string) => {
   const responses = {
@@ -86,22 +85,6 @@ const getExerciseQuestion = (lessonTitle: string) => {
   return questions[Math.floor(Math.random() * questions.length)]
 }
 
-async function getLesson(lessonId: string) {
-  try {
-    const { data: lesson, error } = await supabase.from("lessons").select("*").eq("id", lessonId).single()
-
-    if (error) {
-      console.error("[v0] Error fetching lesson:", error)
-      return null
-    }
-
-    return lesson
-  } catch (error) {
-    console.error("[v0] Error in getLesson:", error)
-    return null
-  }
-}
-
 export default function LessonPage({
   params,
 }: {
@@ -131,23 +114,32 @@ export default function LessonPage({
 
   useEffect(() => {
     async function loadData() {
-      const courseData = await getCourse(slug)
+      const { data: courseData } = await supabase
+        .from("courses")
+        .select("*")
+        .eq("slug", slug)
+        .eq("is_published", true)
+        .maybeSingle()
       if (!courseData) {
         notFound()
         return
       }
 
-      const lessonData = await getLesson(lessonId)
+      const { data: lessonsData } = await supabase
+        .from("lessons")
+        .select("*")
+        .eq("course_id", courseData.id)
+        .order("order_index", { ascending: true })
+
+      const lessonData = lessonsData?.find((l) => l.id === lessonId)
       if (!lessonData) {
         notFound()
         return
       }
 
-      const lessonsData = await getLessons(courseData.id)
-
       setCourse(courseData)
       setLesson(lessonData)
-      setLessons(lessonsData)
+      setLessons(lessonsData || [])
       setLoading(false)
 
       setCurrentPhrase(getVoicePracticePhrase(lessonData.title))
