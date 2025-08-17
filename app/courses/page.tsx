@@ -1,3 +1,4 @@
+import React from "react"
 import { Header } from "@/components/layout/header"
 import { Footer } from "@/components/layout/footer"
 import { GlassCard } from "@/components/ui/glass-card"
@@ -10,8 +11,16 @@ import Link from "next/link"
 import Image from "next/image"
 import { getCourses } from "@/lib/db"
 
-export default async function CoursesPage() {
-  const coursesData = await getCourses()
+export default async function CoursesPage({
+  searchParams,
+}: {
+  searchParams: { page?: string; q?: string }
+}) {
+  const page = Number(searchParams?.page || "1")
+  const q = searchParams?.q || ""
+  const pageSize = 12
+  const offset = (page - 1) * pageSize
+  const coursesData = await getCourses(q, pageSize, offset)
 
   const staticCourses = [
     {
@@ -143,6 +152,8 @@ export default async function CoursesPage() {
                 <div className="flex-1 relative">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4 md:w-5 md:h-5" />
                   <Input
+                    defaultValue={q}
+                    name="q"
                     placeholder="Поиск курсов..."
                     className="pl-9 md:pl-10 bg-white/50 border-white/20 h-10 md:h-11"
                   />
@@ -178,7 +189,11 @@ export default async function CoursesPage() {
         <div className="max-w-7xl mx-auto">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6 lg:gap-8">
             {courses.map((course) => (
-              <GlassCard key={course.id} className="overflow-hidden hover:scale-105 transition-transform duration-300">
+              <GlassCard
+                key={course.id}
+                data-testid="course-card"
+                className="overflow-hidden hover:scale-105 transition-transform duration-300"
+              >
                 <div className="relative">
                   <Image
                     src={course.image || "/placeholder.svg"}
@@ -252,8 +267,16 @@ export default async function CoursesPage() {
               variant="outline"
               size="lg"
               className="bg-white/10 backdrop-blur-sm border-white/20 w-full sm:w-auto"
+              asChild
             >
-              Загрузить еще курсы
+              <Link
+                href={`/courses?${new URLSearchParams({
+                  page: String(page + 1),
+                  q,
+                }).toString()}`}
+              >
+                Загрузить еще курсы
+              </Link>
             </Button>
           </div>
         </div>

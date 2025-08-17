@@ -110,11 +110,14 @@ export async function createUser(email: string, name: string, passwordHash: stri
   return data
 }
 
-export async function getCourses(limit = 20, offset = 0) {
-  const { data, error } = await supabase
-    .from("courses")
-    .select("*")
-    .eq("is_published", true)
+export async function getCourses(search = "", limit = 20, offset = 0) {
+  let builder = supabase.from("courses").select("*").eq("is_published", true)
+
+  if (search) {
+    builder = builder.ilike("title", `%${search}%`)
+  }
+
+  const { data, error } = await builder
     .order("created_at", { ascending: false })
     .range(offset, offset + limit - 1)
 
