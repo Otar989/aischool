@@ -22,6 +22,7 @@ JWT_SECRET=your_jwt_secret_key_min_32_chars
 # Payment Processing
 YOOKASSA_SECRET_KEY=your_yookassa_secret_key
 YOOKASSA_SHOP_ID=your_yookassa_shop_id
+YOOKASSA_WEBHOOK_SECRET=your_webhook_secret
 
 # Application
 NEXT_PUBLIC_APP_URL=https://your-domain.com
