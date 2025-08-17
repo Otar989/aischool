@@ -90,7 +90,9 @@ export async function getUser(email: string) {
     .single()
 
   if (error) {
-    console.log("[v0] Error fetching user:", error)
+    if (process.env.NODE_ENV === "development") {
+      console.error("[v0] Error fetching user:", error)
+    }
     return null
   }
   return data
@@ -104,7 +106,9 @@ export async function createUser(email: string, name: string, passwordHash: stri
     .single()
 
   if (error) {
-    console.log("[v0] Error creating user:", error)
+    if (process.env.NODE_ENV === "development") {
+      console.error("[v0] Error creating user:", error)
+    }
     throw error
   }
   return data
@@ -122,14 +126,18 @@ export async function getCourses(search = "", limit = 20, offset = 0) {
     .range(offset, offset + limit - 1)
 
   if (error) {
-    console.log("[v0] Error fetching courses:", error)
+    if (process.env.NODE_ENV === "development") {
+      console.error("[v0] Error fetching courses:", error)
+    }
     return []
   }
   return data || []
 }
 
 export async function getCourse(slug: string) {
-  console.log("[v0] Fetching course with slug:", slug)
+  if (process.env.NODE_ENV === "development") {
+    console.log("[v0] Fetching course with slug:", slug)
+  }
 
   const { data, error } = await supabase
     .from("courses")
@@ -139,11 +147,15 @@ export async function getCourse(slug: string) {
     .maybeSingle()
 
   if (error) {
-    console.log("[v0] Error fetching course:", error)
+    if (process.env.NODE_ENV === "development") {
+      console.error("[v0] Error fetching course:", error)
+    }
     return null
   }
 
-  console.log("[v0] Course data:", data)
+  if (process.env.NODE_ENV === "development") {
+    console.log("[v0] Course data:", data)
+  }
   return data
 }
 
@@ -155,7 +167,9 @@ export async function getLessons(courseId: string) {
     .order("order_index", { ascending: true })
 
   if (error) {
-    console.log("[v0] Error fetching lessons:", error)
+    if (process.env.NODE_ENV === "development") {
+      console.error("[v0] Error fetching lessons:", error)
+    }
     return []
   }
   return data || []
@@ -198,7 +212,9 @@ export async function getRevenueAnalytics() {
     .order("created_at")
 
   if (error) {
-    console.log("[v0] Error fetching revenue analytics:", error)
+    if (process.env.NODE_ENV === "development") {
+      console.error("[v0] Error fetching revenue analytics:", error)
+    }
     return []
   }
 
@@ -228,7 +244,9 @@ export async function getUserGrowthAnalytics() {
     .order("created_at")
 
   if (error) {
-    console.log("[v0] Error fetching user growth:", error)
+    if (process.env.NODE_ENV === "development") {
+      console.error("[v0] Error fetching user growth:", error)
+    }
     return []
   }
 
@@ -249,7 +267,9 @@ export async function getCoursePerformanceAnalytics() {
   const { data: courses, error: coursesError } = await supabase.from("courses").select("id, title").limit(10)
 
   if (coursesError) {
-    console.log("[v0] Error fetching course performance:", coursesError)
+    if (process.env.NODE_ENV === "development") {
+      console.error("[v0] Error fetching course performance:", coursesError)
+    }
     return []
   }
 
@@ -283,7 +303,9 @@ export async function getChatAnalytics() {
     .order("created_at")
 
   if (error) {
-    console.log("[v0] Error fetching chat analytics:", error)
+    if (process.env.NODE_ENV === "development") {
+      console.error("[v0] Error fetching chat analytics:", error)
+    }
     return []
   }
 
