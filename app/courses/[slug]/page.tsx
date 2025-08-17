@@ -10,10 +10,14 @@ import Link from "next/link"
 
 export default async function CoursePage({ params }: { params: { slug: string } }) {
   const slug = params.slug
-  console.log("[v0] Fetching course with slug:", slug)
+  if (process.env.NODE_ENV === "development") {
+    console.log("[v0] Fetching course with slug:", slug)
+  }
 
   const course = await getCourse(slug)
-  console.log("[v0] Course data:", course)
+  if (process.env.NODE_ENV === "development") {
+    console.log("[v0] Course data:", course)
+  }
 
   if (!course) {
     notFound()
