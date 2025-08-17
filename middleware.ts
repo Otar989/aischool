@@ -1,8 +1,12 @@
-import { updateSession } from "@/lib/supabase/middleware"
 import type { NextRequest } from "next/server"
 
-export async function middleware(request: NextRequest) {
-  return await updateSession(request)
+export function middleware(request: NextRequest) {
+  // Simple path-based middleware without external dependencies
+  const { pathname } = request.nextUrl
+
+  // Allow all requests to pass through for now
+  // Add custom logic here if needed without importing supabase-js
+  return
 }
 
 export const config = {

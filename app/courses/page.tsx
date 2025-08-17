@@ -1,3 +1,7 @@
+export const runtime = "nodejs"
+export const dynamic = "force-dynamic"
+export const fetchCache = "force-no-store"
+
 import { Header } from "@/components/layout/header"
 import { Footer } from "@/components/layout/footer"
 import { GlassCard } from "@/components/ui/glass-card"
@@ -8,7 +12,7 @@ import { Input } from "@/components/ui/input"
 import { Search, Filter, Users, Clock, Star, BookOpen, ArrowRight } from "lucide-react"
 import Link from "next/link"
 import Image from "next/image"
-import { getCourses } from "@/lib/db"
+import { supabaseAdmin } from "@/lib/supabase/serverClient"
 
 export default async function CoursesPage({
   searchParams,
@@ -17,12 +21,22 @@ export default async function CoursesPage({
 }) {
   const page = Number(searchParams?.page || "1")
   const q = searchParams?.q || ""
-  const pageSize = 12
-  const offset = (page - 1) * pageSize
 
   let coursesData = []
   try {
-    coursesData = await getCourses(q, pageSize, offset)
+    const supabase = supabaseAdmin()
+    const { data: courses, error } = await supabase
+      .from("courses")
+      .select("id, title, slug, description, price, image_url, is_published")
+      .eq("is_published", true)
+      .order("created_at", { ascending: false })
+
+    if (error) {
+      console.error("[v0] Error fetching courses:", error)
+      coursesData = []
+    } else {
+      coursesData = courses || []
+    }
   } catch (error) {
     console.error("[v0] Error fetching courses:", error)
     coursesData = []
@@ -194,6 +208,12 @@ export default async function CoursesPage({
       {/* Courses Grid */}
       <section className="pb-16 md:pb-20 px-4 md:px-6">
         <div className="max-w-7xl mx-auto">
+          {coursesData.length === 0 && (
+            <div className="text-center mb-6">
+              <p className="text-muted-foreground">Курсы пока не найдены в базе данных. Показываем демо-курсы.</p>
+            </div>
+          )}
+
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6 lg:gap-8">
             {courses.map((course) => (
               <GlassCard

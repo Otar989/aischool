@@ -1,4 +1,4 @@
-# Image Analysis
+# AI Learning Platform
 
 *Automatically synced with your [v0.app](https://v0.app) deployments*
 
@@ -29,6 +29,37 @@ Continue building your app on:
 3. Changes are automatically pushed to this repository
 4. Vercel deploys the latest version from this repository
 
+## Настройка
+
+1) Скопируйте `.env.example` в `.env` и заполните значениями из Supabase:
+   - NEXT_PUBLIC_SUPABASE_URL
+   - NEXT_PUBLIC_SUPABASE_ANON_KEY
+   - SUPABASE_SERVICE_ROLE_KEY
+   - NEON_NEON_DATABASE_URL (Postgres URI из Settings → Database)
+2) Задать те же переменные в Vercel (Production и Preview), затем Redeploy.
+3) (Быстрое наполнение) В Supabase → SQL Editor можно выполнить:
+   \`\`\`sql
+   create extension if not exists pgcrypto;
+   create table if not exists public.courses (
+     id uuid primary key default gen_random_uuid(),
+     title text not null,
+     slug text unique not null,
+     description text,
+     price numeric default 0,
+     image_url text,
+     is_published boolean default true,
+     created_at timestamptz default now()
+   );
+   insert into public.courses (title, slug, description, is_published)
+   values ('Demo course','demo','Базовый демо-курс', true)
+   on conflict (slug) do nothing;
+   \`\`\`
+4) Либо после деплоя выполнить сидер:
+   \`\`\`bash
+   curl -X POST https://<your-vercel-domain>/api/seed-course
+   \`\`\`
+5) Откройте /courses — должен быть список курсов.
+
 ## Seeding Data
 
 For development or administrative tasks you may need to populate the database
@@ -46,7 +77,7 @@ Both approaches avoid exposing the Supabase service-role key to the client.
 
 The course modules rely on Supabase for data. Configure the following environment variables (see `.env.example` for ready-to-use values):
 
-- `SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 - `SUPABASE_SERVICE_ROLE_KEY`
+- `NEON_DATABASE_URL`

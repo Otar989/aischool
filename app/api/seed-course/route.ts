@@ -1,13 +1,48 @@
-import { NextResponse } from "next/server"
-import { createAdminClient } from "@/lib/supabase/admin"
+export const runtime = "nodejs"
+export const dynamic = "force-dynamic"
+export const fetchCache = "force-no-store"
 
-const supabase = createAdminClient()
+import { NextResponse } from "next/server"
+import { supabaseAdmin } from "@/lib/supabase/serverClient"
 
 export async function POST() {
   if (process.env.ENABLE_SEED_COURSE !== "true") {
     return NextResponse.json({ error: "Seeding disabled" }, { status: 403 })
   }
+
   try {
+    const supabase = supabaseAdmin()
+
+    await supabase
+      .rpc("exec_sql", {
+        sql: `
+        create extension if not exists pgcrypto;
+        create table if not exists public.courses (
+          id uuid primary key default gen_random_uuid(),
+          title text not null,
+          slug text unique not null,
+          description text,
+          price numeric default 0,
+          image_url text,
+          is_published boolean default true,
+          created_at timestamptz default now()
+        );
+        create table if not exists public.lessons (
+          id uuid primary key default gen_random_uuid(),
+          course_id uuid references public.courses(id) on delete cascade,
+          title text not null,
+          content text,
+          order_index integer default 1,
+          duration integer default 15,
+          is_published boolean default true,
+          created_at timestamptz default now()
+        );
+      `,
+      })
+      .catch(() => {
+        /* ignore if function not exists */
+      })
+
     const testCourses = [
       {
         title: "ChatGPT для бизнеса: Автоматизация и продуктивность",

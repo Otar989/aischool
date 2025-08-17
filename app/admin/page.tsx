@@ -2,6 +2,10 @@ import { query } from "@/lib/db"
 import { GlassCard } from "@/components/ui/glass-card"
 import { Users, BookOpen, MessageSquare, DollarSign } from "lucide-react"
 
+export const runtime = "nodejs"
+export const dynamic = "force-dynamic"
+export const fetchCache = "force-no-store"
+
 export default async function AdminDashboard() {
   // Get dashboard statistics
   const [usersResult, coursesResult, paymentsResult, sessionsResult] = await Promise.all([

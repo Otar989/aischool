@@ -2,6 +2,10 @@ import { getRevenueAnalytics, getUserGrowthAnalytics, getCoursePerformanceAnalyt
 import { GlassCard } from "@/components/ui/glass-card"
 import { AnalyticsChart } from "@/components/admin/analytics-chart"
 
+export const runtime = "nodejs"
+export const dynamic = "force-dynamic"
+export const fetchCache = "force-no-store"
+
 export default async function AnalyticsPage() {
   const revenueData = await getRevenueAnalytics()
   const userGrowthData = await getUserGrowthAnalytics()
