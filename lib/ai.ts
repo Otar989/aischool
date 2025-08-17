@@ -1,3 +1,6 @@
+import OpenAI from "openai"
+import { OPENAI_API_KEY, OPENAI_API_BASE_URL } from "./config"
+
 interface ConversationMessage {
   role: "system" | "user" | "assistant"
   content: string
@@ -8,37 +11,33 @@ interface AIResponse {
   tokensUsed: number
 }
 
-// Mock AI responses for demonstration
-const mockResponses = [
-  "Отличный вопрос! Давайте разберем это пошагово. Что вы уже знаете по этой теме?",
-  "Хорошо! Вы на правильном пути. Попробуйте подумать о практическом применении этого концепта.",
-  "Не совсем правильно, но близко! Подсказка: обратите внимание на ключевые слова в задании.",
-  "Превосходно! Вы отлично понимаете материал. Давайте перейдем к более сложному вопросу.",
-  "Интересная мысль! Можете ли вы привести конкретный пример для иллюстрации?",
-]
-
 export async function generateAIResponse(
   conversationHistory: ConversationMessage[],
   lessonContext: string,
 ): Promise<AIResponse> {
-  // Simulate API delay
-  await new Promise((resolve) => setTimeout(resolve, 1000 + Math.random() * 2000))
+  if (!OPENAI_API_KEY) {
+    throw new Error("OPENAI_API_KEY is not configured")
+  }
+
+  const client = new OpenAI({ apiKey: OPENAI_API_KEY, baseURL: OPENAI_API_BASE_URL })
 
   try {
-    // Simple mock logic based on conversation
-    const lastMessage = conversationHistory[conversationHistory.length - 1]
-    let response = mockResponses[Math.floor(Math.random() * mockResponses.length)]
+    const messages = [
+      {
+        role: "system" as const,
+        content: `You are an AI tutor. Use the following lesson context to answer the student:\n${lessonContext}`,
+      },
+      ...conversationHistory,
+    ]
 
-    // Add some context-aware responses
-    if (lastMessage?.content.toLowerCase().includes("не понимаю")) {
-      response = "Понимаю, что это может быть сложно. Давайте разберем по частям. Начнем с основ..."
-    } else if (lastMessage?.content.toLowerCase().includes("спасибо")) {
-      response = "Пожалуйста! Рад помочь. Есть ли еще вопросы по этой теме?"
-    }
+    const completion = await client.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages,
+    })
 
     return {
-      content: response,
-      tokensUsed: Math.floor(Math.random() * 100) + 50,
+      content: completion.choices[0]?.message?.content ?? "",
+      tokensUsed: completion.usage?.total_tokens ?? 0,
     }
   } catch (error) {
     console.error("Error generating AI response:", error)

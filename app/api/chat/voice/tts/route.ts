@@ -14,11 +14,14 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { text, voice } = ttsSchema.parse(body)
 
-    const audioUrl = await generateSpeech(text, voice)
+    const audioBuffer = await generateSpeech(text, voice)
 
-    return NextResponse.json({
-      audioUrl,
-      text,
+    return new NextResponse(audioBuffer, {
+      status: 200,
+      headers: {
+        "Content-Type": "audio/mpeg",
+        "Content-Length": audioBuffer.byteLength.toString(),
+      },
     })
   } catch (error) {
     console.error("Error generating speech:", error)

@@ -1,35 +1,64 @@
+import { OPENAI_API_KEY, OPENAI_API_BASE_URL, OPENAI_TTS_MODEL, OPENAI_TTS_VOICE } from "./config"
+
 export async function transcribeAudio(audioUrl: string): Promise<string> {
-  // Simulate transcription delay
-  await new Promise((resolve) => setTimeout(resolve, 2000))
+  if (!OPENAI_API_KEY) {
+    throw new Error("OPENAI_API_KEY is not configured")
+  }
 
   try {
-    // Mock transcription responses
-    const mockTranscriptions = [
-      "Привет, у меня есть вопрос по этой теме",
-      "Можете объяснить это более подробно?",
-      "Я не совсем понимаю этот концепт",
-      "Спасибо за объяснение, теперь понятно",
-      "Как это применить на практике?",
-    ]
+    const audioResponse = await fetch(audioUrl)
+    if (!audioResponse.ok) {
+      throw new Error("Failed to fetch audio for transcription")
+    }
+    const audioBuffer = await audioResponse.arrayBuffer()
+    const formData = new FormData()
+    formData.append("file", new Blob([audioBuffer]), "audio.webm")
+    formData.append("model", "gpt-4o-mini-transcribe")
 
-    return mockTranscriptions[Math.floor(Math.random() * mockTranscriptions.length)]
+    const response = await fetch(`${OPENAI_API_BASE_URL}/audio/transcriptions`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${OPENAI_API_KEY}`,
+      },
+      body: formData,
+    })
+
+    if (!response.ok) {
+      throw new Error(`Transcription failed: ${await response.text()}`)
+    }
+
+    const data = await response.json()
+    return data.text as string
   } catch (error) {
     console.error("Error transcribing audio:", error)
     throw new Error("Failed to transcribe audio")
   }
 }
 
-export async function generateSpeech(text: string, voice = "nova"): Promise<string> {
-  // Simulate speech generation delay
-  await new Promise((resolve) => setTimeout(resolve, 1500))
+export async function generateSpeech(text: string, voice = OPENAI_TTS_VOICE): Promise<ArrayBuffer> {
+  if (!OPENAI_API_KEY) {
+    throw new Error("OPENAI_API_KEY is not configured")
+  }
 
   try {
-    // For demo purposes, return a placeholder audio URL
-    // In a real implementation, this would generate actual speech
-    console.log(`[Mock] Generating speech for: "${text}" with voice: ${voice}`)
+    const response = await fetch(`${OPENAI_API_BASE_URL}/audio/speech`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${OPENAI_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model: OPENAI_TTS_MODEL,
+        voice,
+        input: text,
+      }),
+    })
 
-    // Return a placeholder audio file URL (you could use a real audio file here)
-    return "/placeholder-audio.mp3"
+    if (!response.ok) {
+      throw new Error(`Failed to generate speech: ${await response.text()}`)
+    }
+
+    return await response.arrayBuffer()
   } catch (error) {
     console.error("Error generating speech:", error)
     throw new Error("Failed to generate speech")
