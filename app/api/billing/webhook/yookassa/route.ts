@@ -1,9 +1,18 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { query } from "@/lib/db"
+import { verifyYooKassaSignature } from "@/lib/yookassa"
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json()
+    const rawBody = await request.text()
+    const signature = request.headers.get("content-hmac")
+    const secret = process.env.YOOKASSA_WEBHOOK_SECRET
+
+    if (!signature || !secret || !verifyYooKassaSignature(rawBody, signature, secret)) {
+      return NextResponse.json({ error: "Invalid signature" }, { status: 400 })
+    }
+
+    const body = JSON.parse(rawBody)
 
     // YooKassa webhook event
     const { event, object: payment } = body

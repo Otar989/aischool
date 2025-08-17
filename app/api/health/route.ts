@@ -11,7 +11,13 @@ export async function GET() {
       throw connectionError
     }
 
-    const requiredEnvVars = ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "YOOKASSA_SECRET_KEY", "YOOKASSA_SHOP_ID"]
+    const requiredEnvVars = [
+      "SUPABASE_URL",
+      "SUPABASE_SERVICE_ROLE_KEY",
+      "YOOKASSA_SECRET_KEY",
+      "YOOKASSA_SHOP_ID",
+      "YOOKASSA_WEBHOOK_SECRET",
+    ]
     const missingEnvVars = requiredEnvVars.filter((envVar) => !process.env[envVar])
 
     if (missingEnvVars.length > 0) {

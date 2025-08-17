@@ -10,7 +10,7 @@ API_URL="${NEXT_PUBLIC_API_URL:-http://localhost:3000/api}"
 
 # Check environment variables
 echo "🔍 Checking environment variables..."
-required_vars=("DATABASE_URL" "JWT_SECRET" "YOOKASSA_SECRET_KEY" "YOOKASSA_SHOP_ID")
+required_vars=("DATABASE_URL" "JWT_SECRET" "YOOKASSA_SECRET_KEY" "YOOKASSA_SHOP_ID" "YOOKASSA_WEBHOOK_SECRET")
 for var in "${required_vars[@]}"; do
     if [ -z "${!var}" ]; then
         echo "❌ ERROR: $var is not set"
