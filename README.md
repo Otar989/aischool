@@ -35,7 +35,7 @@ Continue building your app on:
    - NEXT_PUBLIC_SUPABASE_URL
    - NEXT_PUBLIC_SUPABASE_ANON_KEY
    - SUPABASE_SERVICE_ROLE_KEY
-   - NEON_NEON_DATABASE_URL (Postgres URI из Settings → Database)
+   - DATABASE_URL (Postgres connection string)
 2) Задать те же переменные в Vercel (Production и Preview), затем Redeploy.
 3) (Быстрое наполнение) В Supabase → SQL Editor можно выполнить:
    \`\`\`sql
@@ -80,4 +80,4 @@ The course modules rely on Supabase for data. Configure the following environmen
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 - `SUPABASE_SERVICE_ROLE_KEY`
-- `NEON_DATABASE_URL`
+- `DATABASE_URL`

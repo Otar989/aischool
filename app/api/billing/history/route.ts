@@ -7,7 +7,7 @@ import { query } from "@/lib/db"
 
 export async function GET() {
   try {
-    if (!process.env.NEON_DATABASE_URL) {
+    if (!process.env.DATABASE_URL) {
       return NextResponse.json({
         orders: [],
         subscriptions: [],
