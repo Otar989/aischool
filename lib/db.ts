@@ -1,17 +1,25 @@
-import { createClient, SupabaseClient } from "@supabase/supabase-js"
-import { Pool, QueryResult } from "pg"
+import { createClient, type SupabaseClient } from "@supabase/supabase-js"
 import fs from "fs"
 
 let supabase: SupabaseClient
 
-let pool: Pool | null = null
+let pool: any = null
 
 function getPool() {
+  if (typeof window !== "undefined") {
+    throw new Error("PostgreSQL connections cannot be used in browser environment")
+  }
+
   if (pool) return pool
+
   const connectionString = process.env.DATABASE_URL
   if (!connectionString) {
     throw new Error("Database connection string not configured")
   }
+
+  // Import pg only when needed on server side
+  const { Pool } = require("pg")
+
   pool = new Pool({
     connectionString,
     ssl: process.env.PG_CA_CERT
@@ -21,7 +29,7 @@ function getPool() {
   return pool
 }
 
-export function __setPool(newPool: Pool) {
+export function __setPool(newPool: any) {
   pool = newPool
 }
 
@@ -78,7 +86,7 @@ if (typeof window !== "undefined") {
   }
 }
 
-export async function query(text: string, params: any[] = []): Promise<QueryResult> {
+export async function query(text: string, params: any[] = []): Promise<any> {
   try {
     const db = getPool()
     return await db.query(text, params)
@@ -127,9 +135,7 @@ export async function getCourses(search = "", limit = 20, offset = 0) {
     builder = builder.ilike("title", `%${search}%`)
   }
 
-  const { data, error } = await builder
-    .order("created_at", { ascending: false })
-    .range(offset, offset + limit - 1)
+  const { data, error } = await builder.order("created_at", { ascending: false }).range(offset, offset + limit - 1)
 
   if (error) {
     if (process.env.NODE_ENV === "development") {
