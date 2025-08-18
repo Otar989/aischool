@@ -1,3 +1,6 @@
+export const runtime = "nodejs"
+export const dynamic = "force-dynamic"
+
 import { type NextRequest, NextResponse } from "next/server"
 import { requireAuth } from "@/lib/auth"
 import { query } from "@/lib/db"
@@ -13,6 +16,10 @@ const checkoutSchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
+    if (!process.env.NEON_DATABASE_URL) {
+      return NextResponse.json({ error: "Billing DB is not configured yet" }, { status: 501 })
+    }
+
     const user = await requireAuth()
     const body = await request.json()
     const { type, plan, courseId, couponCode } = checkoutSchema.parse(body)
