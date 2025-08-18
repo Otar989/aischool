@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic" // или export const revalidate = 0;
 import { query } from "@/lib/db"
 import { GlassCard } from "@/components/ui/glass-card"
 import { Button } from "@/components/ui/button"
