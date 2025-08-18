@@ -1,5 +1,6 @@
 import { createClient, SupabaseClient } from "@supabase/supabase-js"
 import { Pool, QueryResult } from "pg"
+import fs from "fs"
 
 let supabase: SupabaseClient
 
@@ -11,7 +12,12 @@ function getPool() {
   if (!connectionString) {
     throw new Error("Database connection string not configured")
   }
-  pool = new Pool({ connectionString })
+  pool = new Pool({
+    connectionString,
+    ssl: process.env.PG_CA_CERT
+      ? { ca: fs.readFileSync(process.env.PG_CA_CERT, "utf8") }
+      : { rejectUnauthorized: false }, // временное решение
+  })
   return pool
 }
 
