@@ -16,7 +16,7 @@ const checkoutSchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
-    if (!process.env.NEON_DATABASE_URL) {
+    if (!process.env.DATABASE_URL) {
       return NextResponse.json({ error: "Billing DB is not configured yet" }, { status: 501 })
     }
 
