@@ -45,7 +45,14 @@ export async function POST(req: NextRequest) {
 
   let matched: any = null;
   for (const r of rows) {
-    if (await bcrypt.compare(code, r.code_hash)) { matched = r; break; }
+    try {
+      if (r.code_hash === code) { // plaintext fallback
+        matched = r; break;
+      }
+      if (r.code_hash.startsWith('$2') && await bcrypt.compare(code, r.code_hash)) { matched = r; break; }
+    } catch (e) {
+      console.error('[promo] compare error', e)
+    }
   }
 
   if (!matched) return NextResponse.json({ error: 'Неверный промокод' }, { status: 401 });
