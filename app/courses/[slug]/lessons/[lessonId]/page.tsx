@@ -203,7 +203,9 @@ export default function LessonPage({
       // Загрузка материалов (только публичные)
       try {
         setMaterialsLoading(true)
-        const resp = await fetch(`/api/courses/${courseData.id}/materials?lessonId=${lessonData.id}&publishedOnly=1`, { cache: 'no-store' })
+  const hasPromo = typeof document !== 'undefined' && /(^|; )promo_session=/.test(document.cookie)
+        const q = hasPromo ? 'publishedOnly=0' : 'publishedOnly=1'
+        const resp = await fetch(`/api/courses/${courseData.id}/materials?lessonId=${lessonData.id}&${q}`, { cache: 'no-store' })
         if (resp.ok) {
           const data = await resp.json()
             const list: LessonMaterial[] = data.materials || []
