@@ -92,6 +92,7 @@ export default function LessonPage({
   const [isPlaying, setIsPlaying] = useState(false)
   const [recordingTime, setRecordingTime] = useState(0)
   const [aiTyping, setAiTyping] = useState(false)
+  const [sessionId, setSessionId] = useState<string | null>(null)
 
   const recordingInterval = useRef<NodeJS.Timeout>()
 
@@ -127,6 +128,21 @@ export default function LessonPage({
 
       setCurrentPhrase(getVoicePracticePhrase(lessonData.title))
       setCurrentExercise(getExerciseQuestion(lessonData.title))
+
+      // Автостарт или получение существующей чат-сессии
+      try {
+        const startResp = await fetch('/api/chat/session/start', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ courseId: courseData.id, lessonId: lessonData.id })
+        })
+        if (startResp.ok) {
+          const data = await startResp.json()
+          setSessionId(data.sessionId)
+        }
+      } catch (e) {
+        console.error('Failed to start chat session', e)
+      }
     }
 
     loadData()
@@ -172,7 +188,7 @@ export default function LessonPage({
   }, [progressPct, lesson, completionSent])
 
   const handleSendMessage = async () => {
-    if (!chatMessage.trim() || !lesson) return
+    if (!chatMessage.trim() || !lesson || !sessionId) return
     const userMsg: ChatMsg = { role: 'user', content: chatMessage }
     setChatHistory(prev => [...prev, userMsg])
     const toSend = chatMessage
@@ -184,7 +200,7 @@ export default function LessonPage({
       const resp = await fetch('/api/ai/lesson-chat', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ lessonId: lesson.id, messages: [...chatHistory, userMsg].slice(-20) })
+        body: JSON.stringify({ lessonId: lesson.id, sessionId, message: userMsg.content })
       })
       if (!resp.body) throw new Error('no stream')
       const reader = resp.body.getReader()

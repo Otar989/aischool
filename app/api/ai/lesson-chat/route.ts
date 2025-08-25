@@ -6,11 +6,9 @@ import OpenAI from 'openai'
 import { z } from 'zod'
 
 const bodySchema = z.object({
+  sessionId: z.string().uuid(),
   lessonId: z.string(),
-  messages: z.array(z.object({
-    role: z.enum(['user','assistant','system']).default('user'),
-    content: z.string().min(1)
-  })).min(1).max(30)
+  message: z.string().min(1)
 })
 
 export const runtime = 'nodejs'
@@ -25,7 +23,16 @@ export async function POST(req: NextRequest) {
     }
 
     const json = await req.json()
-    const { lessonId, messages } = bodySchema.parse(json)
+    const { lessonId, sessionId, message } = bodySchema.parse(json)
+
+    // validate session ownership & lesson consistency
+    const sessionRes = await query('SELECT id, user_id, lesson_id FROM chat_sessions WHERE id = $1 LIMIT 1', [sessionId])
+    if (sessionRes.rows.length === 0 || sessionRes.rows[0].user_id !== user.id) {
+      return new Response('Session not found', { status: 404 })
+    }
+    if (sessionRes.rows[0].lesson_id && sessionRes.rows[0].lesson_id !== lessonId) {
+      return new Response('Lesson mismatch', { status: 400 })
+    }
 
     const lessonRes = await query('SELECT title, content_md FROM lessons WHERE id = $1 LIMIT 1', [lessonId])
     if (lessonRes.rows.length === 0) {
@@ -33,7 +40,7 @@ export async function POST(req: NextRequest) {
     }
     const { title, content_md } = lessonRes.rows[0]
 
-    const systemPrompt = `You are an AI tutor. Help the student understand the lesson. Lesson title: ${title}. Use only information from lesson when possible and answer in Russian. If you are unsure, ask a clarifying question. Keep answers concise.`
+  const systemPrompt = `You are an AI tutor. Help the student understand the lesson. Lesson title: ${title}. Use only information from lesson when possible and answer in Russian. If you are unsure, ask a clarifying question. Keep answers concise.`
     const context = (content_md || '').toString().slice(0, 8000)
 
     const openaiKey = process.env.OPENAI_API_KEY
@@ -43,8 +50,20 @@ export async function POST(req: NextRequest) {
 
     const client = new OpenAI({ apiKey: openaiKey, baseURL: process.env.OPENAI_API_BASE_URL })
 
-    // Prepare chat messages (truncate history to last 20 messages for safety)
-    const trimmed = messages.slice(-20).map(m => ({ role: m.role as 'user' | 'assistant' | 'system', content: m.content }))
+    // Persist user message first
+    const userTokens = estimateTokens(message)
+    await query(
+      `INSERT INTO chat_messages (session_id, user_id, lesson_id, role, modality, content_text, tokens_used, created_at)
+       VALUES ($1,$2,$3,'user','text',$4,$5,NOW())`,
+      [sessionId, user.id, lessonId, message, userTokens]
+    )
+
+    // Load last N messages from DB to build history
+    const historyRes = await query(
+      `SELECT role, content_text FROM chat_messages WHERE session_id = $1 ORDER BY created_at ASC LIMIT 50`,
+      [sessionId]
+    )
+    const trimmed = historyRes.rows.map(r => ({ role: (r.role === 'system' ? 'system' : r.role === 'assistant' ? 'assistant' : 'user') as 'user' | 'assistant' | 'system', content: r.content_text }))
     const chatMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
       { role: 'system', content: systemPrompt + '\n\nLesson Content (truncated):\n' + context },
       ...trimmed
@@ -58,7 +77,7 @@ export async function POST(req: NextRequest) {
 
     const encoder = new TextEncoder()
 
-    let fullResponse = ''
+  let fullResponse = ''
 
     const stream = new ReadableStream<Uint8Array>({
       async start(controller) {
@@ -75,7 +94,19 @@ export async function POST(req: NextRequest) {
           controller.enqueue(encoder.encode('\n[Ошибка генерации ответа]'))
         } finally {
           controller.close()
-          // TODO: persist (session / messages) after streaming once persistence layer finalised
+          // Save assistant message & best-effort update tokens
+          try {
+            const assistantTokens = estimateTokens(fullResponse)
+            await query(
+              `INSERT INTO chat_messages (session_id, user_id, lesson_id, role, modality, content_text, tokens_used, created_at)
+               VALUES ($1,$2,$3,'assistant','text',$4,$5,NOW())`,
+              [sessionId, user.id, lessonId, fullResponse, assistantTokens]
+            )
+            // Optional: update aggregate if column exists
+            try { await query(`UPDATE chat_sessions SET total_tokens = COALESCE(total_tokens,0) + $1 WHERE id = $2`, [userTokens + assistantTokens, sessionId]) } catch {}
+          } catch (e) {
+            console.error('Persist assistant failed', e)
+          }
         }
       }
     })
@@ -91,4 +122,8 @@ export async function POST(req: NextRequest) {
     console.error('lesson-chat endpoint error', e)
     return new Response('Internal error', { status: 500 })
   }
+}
+
+function estimateTokens(text: string): number {
+  return Math.ceil(text.length / 4)
 }
