@@ -3,6 +3,7 @@ import { requireAuth } from '@/lib/auth'
 import { rl } from '@/lib/ratelimit'
 import { query } from '@/lib/db'
 import OpenAI from 'openai'
+import { getEmbeddingFromCache, setEmbeddingCache } from '@/lib/ragCache'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { z } from 'zod'
 
@@ -46,11 +47,16 @@ export async function POST(req: NextRequest) {
   let ragDocs: { chunk: string; score: number }[] = []
     try {
       if (message.length > 5) {
-        const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY, baseURL: process.env.OPENAI_API_BASE_URL })
         const embModel = process.env.EMBEDDING_MODEL || 'text-embedding-3-small'
-        const emb = await openai.embeddings.create({ model: embModel, input: message })
-        const vector = emb.data[0].embedding
-        // ограничим количеством материалов
+        // 10 минут TTL
+        const TTL = 10 * 60 * 1000
+        let vector = getEmbeddingFromCache(message, TTL)
+        if (!vector) {
+          const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY, baseURL: process.env.OPENAI_API_BASE_URL })
+          const emb = await openai.embeddings.create({ model: embModel, input: message })
+          vector = emb.data[0].embedding
+          setEmbeddingCache(message, vector)
+        }
         const ragRes = await query(
           'SELECT mc.chunk, 1 - (mc.embedding <#> $1::vector) AS score FROM material_chunks mc JOIN course_materials m ON mc.material_id = m.id WHERE m.course_id = $2 ORDER BY mc.embedding <#> $1::vector ASC LIMIT 5',
           [vector, course_id]
@@ -59,7 +65,6 @@ export async function POST(req: NextRequest) {
         ragText = ragDocs.map((r,i)=>`[DOC${i+1} score=${r.score.toFixed(3)}]\n${r.chunk}`).join('\n\n')
       }
     } catch (e) {
-      // не фейлим основную логику, просто логируем
       console.error('RAG fetch failed', e)
     }
 

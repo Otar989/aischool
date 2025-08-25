@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import OpenAI from 'openai'
+import { getEmbeddingFromCache, setEmbeddingCache } from '@/lib/ragCache'
 import { query } from '@/lib/db'
 import { requireAdmin } from '@/lib/admin'
 
@@ -13,10 +14,15 @@ export async function POST(req: NextRequest) {
     await requireAdmin(req) // пока ограничим админам
     const body = await req.json()
     const { q, limit, course_id } = schema.parse(body)
-    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY, baseURL: process.env.OPENAI_API_BASE_URL })
     const model = process.env.EMBEDDING_MODEL || 'text-embedding-3-small'
-    const emb = await openai.embeddings.create({ model, input: q })
-    const vector = emb.data[0].embedding
+    const TTL = 10 * 60 * 1000
+    let vector = getEmbeddingFromCache(q, TTL)
+    if (!vector) {
+      const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY, baseURL: process.env.OPENAI_API_BASE_URL })
+      const emb = await openai.embeddings.create({ model, input: q })
+      vector = emb.data[0].embedding
+      setEmbeddingCache(q, vector)
+    }
     // cosine similarity = 1 - distance/2 if using L2 normalized, но vector extension имеет оператор <#> для cosine distance (или <=>). Предположим используем <-> для euclidean; упростим с inner product approximation если настроено. Используем cosine_distance(column,vector) если доступно иначе оператор <#>.
     const sql = course_id ?
       'SELECT mc.material_id, mc.chunk, 1 - (mc.embedding <#> $1::vector) AS score FROM material_chunks mc JOIN course_materials m ON mc.material_id = m.id WHERE m.course_id = $2 ORDER BY mc.embedding <#> $1::vector ASC LIMIT $3' :
