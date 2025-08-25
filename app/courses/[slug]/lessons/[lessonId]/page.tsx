@@ -7,11 +7,12 @@ import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Textarea } from "@/components/ui/textarea"
-import { ArrowLeft, ArrowRight, MessageCircle, Mic, BookOpen, Send, MicIcon, Square, Volume2, Pause, StopCircle } from "lucide-react"
+import { ArrowLeft, ArrowRight, MessageCircle, Mic, BookOpen, Send, MicIcon, Square, Volume2, Pause, StopCircle, Volume1 } from "lucide-react"
 import { notFound } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import Link from "next/link"
 import { useState, useEffect, useRef } from "react"
+import { useVoiceRecording } from '@/hooks/use-voice-recording'
 import { toast } from "sonner"
 
 interface Course {
@@ -84,7 +85,7 @@ export default function LessonPage({
   const [exerciseOpen, setExerciseOpen] = useState(false)
   const [chatMessage, setChatMessage] = useState("")
   const [chatHistory, setChatHistory] = useState<ChatMsg[]>([])
-  const [isRecording, setIsRecording] = useState(false)
+  const [isRecording, setIsRecording] = useState(false) // legacy for practice modal
   const [exerciseAnswer, setExerciseAnswer] = useState("")
 
   const [currentPhrase, setCurrentPhrase] = useState("")
@@ -94,6 +95,32 @@ export default function LessonPage({
   const [aiTyping, setAiTyping] = useState(false)
   const [sessionId, setSessionId] = useState<string | null>(null)
   const abortControllerRef = useRef<AbortController | null>(null)
+  const [voiceTranscribing, setVoiceTranscribing] = useState(false)
+  const ttsCacheRef = useRef<Map<string, HTMLAudioElement>>(new Map())
+
+  const { isRecording: chatIsRecording, toggleRecording: chatToggleRecording } = useVoiceRecording({
+    onRecordingComplete: async (blob) => {
+      try {
+        setVoiceTranscribing(true)
+        const fd = new FormData()
+        fd.append('file', blob, 'audio.webm')
+        const resp = await fetch('/api/chat/voice/transcribe', { method: 'POST', body: fd })
+        if (!resp.ok) throw new Error('fail')
+        const data = await resp.json()
+        if (data.text) {
+          setChatMessage(prev => prev ? prev + ' ' + data.text : data.text)
+          toast.success('Распознано')
+        } else {
+          toast.error('Пустая расшифровка')
+        }
+      } catch {
+        toast.error('Ошибка распознавания')
+      } finally {
+        setVoiceTranscribing(false)
+      }
+    },
+    onError: () => toast.error('Ошибка записи')
+  })
 
   const recordingInterval = useRef<NodeJS.Timeout>()
 
@@ -292,6 +319,33 @@ export default function LessonPage({
     }
   }
 
+  const handlePlayTts = async (text: string) => {
+    try {
+      if (!text) return
+      const key = text.slice(0, 512)
+      const cached = ttsCacheRef.current.get(key)
+      if (cached) {
+        cached.currentTime = 0
+        await cached.play()
+        return
+      }
+      const resp = await fetch('/api/chat/voice/tts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text })
+      })
+      if (!resp.ok) throw new Error('TTS error')
+      const data = await resp.json()
+      if (!data.audioUrl) throw new Error('Нет audioUrl')
+      const audio = new Audio(data.audioUrl)
+      ttsCacheRef.current.set(key, audio)
+      await audio.play()
+    } catch (e) {
+      console.error('TTS play error', e)
+      toast.error('Ошибка воспроизведения')
+    }
+  }
+
   const handleVoiceToggle = () => {
     if (isRecording) {
       // Stop recording
@@ -476,14 +530,18 @@ export default function LessonPage({
                 </div>
               )}
               {chatHistory.map((msg, idx) => (
-                <div key={idx} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
-                  <div
-                    className={`max-w-xs p-3 rounded-lg ${
-                      msg.role === "user" ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-900"
-                    }`}
-                  >
-                    {msg.content}
-                  </div>
+                <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} relative group`}>
+                  <div className={`max-w-xs p-3 rounded-lg ${msg.role === 'user' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-900'}`}>{msg.content}</div>
+                  {msg.role === 'assistant' && (
+                    <button
+                      type="button"
+                      onClick={() => handlePlayTts(msg.content)}
+                      className="opacity-0 group-hover:opacity-100 transition-opacity absolute -right-8 top-1 text-gray-500 hover:text-gray-800"
+                      title="Прослушать ответ"
+                    >
+                      <Volume1 className="w-4 h-4" />
+                    </button>
+                  )}
                 </div>
               ))}
               {aiTyping && (
@@ -505,19 +563,29 @@ export default function LessonPage({
               )}
             </div>
             <div className="flex gap-2 p-4 border-t">
-              <Textarea
-                value={chatMessage}
-                onChange={(e) => setChatMessage(e.target.value)}
-                placeholder="Задайте вопрос..."
-                className="flex-1"
-                onKeyPress={(e) => e.key === "Enter" && !e.shiftKey && (e.preventDefault(), handleSendMessage())}
-              />
+              <div className="flex-1 flex flex-col gap-2">
+                <Textarea
+                  value={chatMessage}
+                  onChange={(e) => setChatMessage(e.target.value)}
+                  placeholder={voiceTranscribing ? 'Распознаём...' : 'Введите или продиктуйте вопрос'}
+                  className="flex-1"
+                  disabled={voiceTranscribing}
+                  onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), handleSendMessage())}
+                />
+                <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                  {chatIsRecording && <span className="text-red-600">● Запись...</span>}
+                  {voiceTranscribing && <span>Распознавание...</span>}
+                </div>
+              </div>
+              <Button type="button" variant={chatIsRecording ? 'destructive' : 'outline'} onClick={chatToggleRecording} disabled={aiTyping || voiceTranscribing}>
+                {chatIsRecording ? <Square className="h-4 w-4" /> : <MicIcon className="h-4 w-4" />}
+              </Button>
               {aiTyping ? (
                 <Button variant="destructive" onClick={handleStopStreaming}>
                   <StopCircle className="h-4 w-4" />
                 </Button>
               ) : (
-                <Button onClick={handleSendMessage} disabled={aiTyping}>
+                <Button onClick={handleSendMessage} disabled={aiTyping || voiceTranscribing || !chatMessage.trim()}>
                   <Send className="h-4 w-4" />
                 </Button>
               )}
