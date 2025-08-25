@@ -7,13 +7,31 @@ import { Button } from "@/components/ui/button"
 import { GradientButton } from "@/components/ui/gradient-button"
 import { GlassCard } from "@/components/ui/glass-card"
 import { Menu, X, BookOpen } from "lucide-react"
-import { useState } from "react"
+import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 
 export function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
+  const [isAuthed, setIsAuthed] = useState(false)
+  const router = useRouter()
   const pathname = usePathname()
-  const ctaHref = "/start"
-  const ctaLabel = pathname === "/promo" ? "На главную" : "Начать обучение"
+  const ctaHref = isAuthed ? "/courses" : "/start"
+  const ctaLabel = isAuthed ? "Каталог" : pathname === "/promo" ? "На главную" : "Начать обучение"
+
+  useEffect(() => {
+    // Простая проверка cookie promo_session на клиенте
+    const has = document.cookie.includes('promo_session=')
+    setIsAuthed(has)
+  }, [pathname])
+
+  const handleLogout = () => {
+    // Удаляем cookie промо (невозможно напрямую без сервера — делаем истёкшую) + localStorage следы
+    document.cookie = 'promo_session=; Max-Age=0; path=/; SameSite=Strict'
+    localStorage.removeItem('promo_auth')
+    localStorage.removeItem('promo_user')
+    setIsAuthed(false)
+    router.replace('/')
+  }
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 p-4">
@@ -42,12 +60,26 @@ export function Header() {
 
           {/* Desktop Auth Buttons */}
           <div className="hidden md:flex items-center gap-4">
-            <Button variant="ghost" asChild>
-              <Link href="/promo">Войти</Link>
-            </Button>
-            <GradientButton asChild>
-              <Link href={ctaHref}>{ctaLabel}</Link>
-            </GradientButton>
+            {isAuthed ? (
+              <>
+                <Button variant="ghost" asChild>
+                  <Link href="/dashboard">ЛК</Link>
+                </Button>
+                <Button variant="outline" onClick={handleLogout}>Выйти</Button>
+                <GradientButton asChild>
+                  <Link href={ctaHref}>{ctaLabel}</Link>
+                </GradientButton>
+              </>
+            ) : (
+              <>
+                <Button variant="ghost" asChild>
+                  <Link href="/promo">Войти</Link>
+                </Button>
+                <GradientButton asChild>
+                  <Link href={ctaHref}>{ctaLabel}</Link>
+                </GradientButton>
+              </>
+            )}
           </div>
 
           {/* Mobile Menu Button */}
@@ -70,12 +102,26 @@ export function Header() {
                 Тарифы
               </Link>
               <div className="flex flex-col gap-2 pt-4 border-t border-white/20">
-                <Button variant="ghost" asChild>
-                  <Link href="/promo">Войти</Link>
-                </Button>
-                <GradientButton asChild>
-                  <Link href={ctaHref}>{ctaLabel}</Link>
-                </GradientButton>
+                {isAuthed ? (
+                  <>
+                    <Button variant="ghost" asChild>
+                      <Link href="/dashboard">Личный кабинет</Link>
+                    </Button>
+                    <Button variant="outline" onClick={handleLogout}>Выйти</Button>
+                    <GradientButton asChild>
+                      <Link href={ctaHref}>{ctaLabel}</Link>
+                    </GradientButton>
+                  </>
+                ) : (
+                  <>
+                    <Button variant="ghost" asChild>
+                      <Link href="/promo">Войти</Link>
+                    </Button>
+                    <GradientButton asChild>
+                      <Link href={ctaHref}>{ctaLabel}</Link>
+                    </GradientButton>
+                  </>
+                )}
               </div>
             </div>
           </div>
