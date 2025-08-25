@@ -98,6 +98,8 @@ export default function LessonPage({
   const [voiceTranscribing, setVoiceTranscribing] = useState(false)
   const [chatRecordingSeconds, setChatRecordingSeconds] = useState(0)
   const lastRecordingUrlRef = useRef<string | null>(null)
+  const [selectedVoice, setSelectedVoice] = useState<'nova' | 'alloy'>('nova') // nova=female, alloy=male
+  const [showVoiceHint, setShowVoiceHint] = useState(false)
   const ttsCacheRef = useRef<Map<string, HTMLAudioElement>>(new Map())
 
   const { isRecording: chatIsRecording, toggleRecording: chatToggleRecording, stopRecording: stopChatRecording } = useVoiceRecording({
@@ -328,7 +330,7 @@ export default function LessonPage({
   const handlePlayTts = async (text: string) => {
     try {
       if (!text) return
-      const key = text.slice(0, 512)
+      const key = selectedVoice + ':' + text.slice(0, 512)
       const cached = ttsCacheRef.current.get(key)
       if (cached) {
         cached.currentTime = 0
@@ -338,7 +340,7 @@ export default function LessonPage({
       const resp = await fetch('/api/chat/voice/tts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text })
+        body: JSON.stringify({ text, voice: selectedVoice })
       })
       if (!resp.ok) throw new Error('TTS error')
       const blob = await resp.blob()
@@ -369,6 +371,64 @@ export default function LessonPage({
       return () => clearInterval(interval)
     }
   }, [chatIsRecording, stopChatRecording])
+
+  // Горячая клавиша (зажать пробел) для push-to-talk
+  useEffect(() => {
+    if (!chatOpen) return
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.code === 'Space' && !e.repeat) {
+        const ae = document.activeElement as HTMLElement | null
+        if (ae && (ae.tagName === 'TEXTAREA' || ae.getAttribute('contenteditable') === 'true')) return
+        if (!chatIsRecording && !voiceTranscribing) {
+          e.preventDefault()
+          chatToggleRecording()
+        }
+      }
+    }
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.code === 'Space') {
+        const ae = document.activeElement as HTMLElement | null
+        if (ae && (ae.tagName === 'TEXTAREA' || ae.getAttribute('contenteditable') === 'true')) return
+        if (chatIsRecording) {
+          e.preventDefault()
+          chatToggleRecording()
+        }
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    window.addEventListener('keyup', handleKeyUp)
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+      window.removeEventListener('keyup', handleKeyUp)
+    }
+  }, [chatOpen, chatIsRecording, voiceTranscribing, chatToggleRecording])
+
+  // === Persistence: load saved voice on mount ===
+  useEffect(() => {
+    try {
+      const saved = typeof window !== 'undefined' ? localStorage.getItem('voice_pref') : null
+      if (saved === 'nova' || saved === 'alloy') setSelectedVoice(saved)
+    } catch {}
+  }, [])
+
+  // Save voice when changes
+  useEffect(() => {
+    try { localStorage.setItem('voice_pref', selectedVoice) } catch {}
+  }, [selectedVoice])
+
+  // One-time onboarding hint when chat opens
+  useEffect(() => {
+    if (chatOpen) {
+      try {
+        if (!localStorage.getItem('voice_hint_seen')) {
+          setShowVoiceHint(true)
+          localStorage.setItem('voice_hint_seen', '1')
+        }
+      } catch {}
+    } else {
+      setShowVoiceHint(false)
+    }
+  }, [chatOpen])
 
   const handleVoiceToggle = () => {
     if (isRecording) {
@@ -546,6 +606,13 @@ export default function LessonPage({
           </DialogHeader>
           <div className="flex flex-col h-96">
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
+              {showVoiceHint && (
+                <div className="p-3 mb-2 rounded-md bg-amber-50 border border-amber-200 text-amber-800 text-xs flex items-start gap-2">
+                  <span className="font-semibold">Совет:</span>
+                  <span>Зажмите пробел, чтобы говорить. Отпустите — распознавание начнётся. Выбранный голос используется для озвучки ответов (Мария/Иван).</span>
+                  <button onClick={() => setShowVoiceHint(false)} className="ml-auto text-amber-600 hover:underline">×</button>
+                </div>
+              )}
               {chatHistory.length === 0 && (
                 <div className="text-center text-muted-foreground p-4 bg-blue-50 rounded-lg">
                   <MessageCircle className="w-8 h-8 mx-auto mb-2 text-blue-600" />
@@ -611,6 +678,17 @@ export default function LessonPage({
                     </div>
                   )}
                   {voiceTranscribing && <span>Распознавание...</span>}
+                  <div className="flex items-center gap-1 ml-auto">
+                    <label className="text-[11px] uppercase tracking-wide">Голос:</label>
+                    <select
+                      className="border rounded px-1 py-0.5 text-xs bg-white dark:bg-neutral-900"
+                      value={selectedVoice}
+                      onChange={(e) => setSelectedVoice(e.target.value as 'nova' | 'alloy')}
+                    >
+                      <option value="nova">Мария</option>
+                      <option value="alloy">Иван</option>
+                    </select>
+                  </div>
                 </div>
               </div>
               <Button type="button" variant={chatIsRecording ? 'destructive' : 'outline'} onClick={chatToggleRecording} disabled={aiTyping || voiceTranscribing}>
