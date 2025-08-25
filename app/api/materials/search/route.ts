@@ -3,7 +3,8 @@ import { z } from 'zod'
 import OpenAI from 'openai'
 import { getEmbeddingFromCache, setEmbeddingCache } from '@/lib/ragCache'
 import { query } from '@/lib/db'
-import { requireAdmin } from '@/lib/admin'
+import { isAdminRequest } from '@/lib/admin'
+import { cookies } from 'next/headers'
 
 export const runtime = 'nodejs'
 
@@ -11,9 +12,10 @@ const schema = z.object({ q: z.string().min(1), limit: z.number().int().min(1).m
 
 export async function POST(req: NextRequest) {
   try {
-    await requireAdmin(req) // пока ограничим админам
-    const body = await req.json()
-    const { q, limit, course_id } = schema.parse(body)
+  const body = await req.json()
+  const { q, limit, course_id } = schema.parse(body)
+  const admin = await isAdminRequest(req)
+  const hasPromo = !!cookies().get('promo_session')?.value
     const model = process.env.EMBEDDING_MODEL || 'text-embedding-3-small'
     const TTL = 10 * 60 * 1000
     let vector = getEmbeddingFromCache(q, TTL)
@@ -24,12 +26,27 @@ export async function POST(req: NextRequest) {
       setEmbeddingCache(q, vector)
     }
     // cosine similarity = 1 - distance/2 if using L2 normalized, но vector extension имеет оператор <#> для cosine distance (или <=>). Предположим используем <-> для euclidean; упростим с inner product approximation если настроено. Используем cosine_distance(column,vector) если доступно иначе оператор <#>.
-    const sql = course_id ?
-      'SELECT mc.material_id, mc.chunk, 1 - (mc.embedding <#> $1::vector) AS score FROM material_chunks mc JOIN course_materials m ON mc.material_id = m.id WHERE m.course_id = $2 ORDER BY mc.embedding <#> $1::vector ASC LIMIT $3' :
-      'SELECT mc.material_id, mc.chunk, 1 - (mc.embedding <#> $1::vector) AS score FROM material_chunks mc ORDER BY mc.embedding <#> $1::vector ASC LIMIT $2'
-    const params = course_id ? [vector, course_id, limit] : [vector, limit]
+    let sql: string
+    let params: any[]
+    if (course_id) {
+      if (admin || hasPromo) {
+        sql = 'SELECT mc.material_id, mc.chunk, 1 - (mc.embedding <#> $1::vector) AS score FROM material_chunks mc JOIN course_materials m ON mc.material_id = m.id WHERE m.course_id = $2 ORDER BY mc.embedding <#> $1::vector ASC LIMIT $3'
+        params = [vector, course_id, limit]
+      } else {
+        sql = 'SELECT mc.material_id, mc.chunk, 1 - (mc.embedding <#> $1::vector) AS score FROM material_chunks mc JOIN course_materials m ON mc.material_id = m.id WHERE m.course_id = $2 AND m.is_public = true ORDER BY mc.embedding <#> $1::vector ASC LIMIT $3'
+        params = [vector, course_id, limit]
+      }
+    } else {
+      if (admin || hasPromo) {
+        sql = 'SELECT mc.material_id, mc.chunk, 1 - (mc.embedding <#> $1::vector) AS score FROM material_chunks mc ORDER BY mc.embedding <#> $1::vector ASC LIMIT $2'
+        params = [vector, limit]
+      } else {
+        sql = 'SELECT mc.material_id, mc.chunk, 1 - (mc.embedding <#> $1::vector) AS score FROM material_chunks mc JOIN course_materials m ON mc.material_id = m.id WHERE m.is_public = true ORDER BY mc.embedding <#> $1::vector ASC LIMIT $2'
+        params = [vector, limit]
+      }
+    }
     const res = await query(sql, params)
-    return NextResponse.json({ results: res.rows })
+    return NextResponse.json({ results: res.rows, admin })
   } catch (e:any) {
     return NextResponse.json({ error: e.message }, { status: 400 })
   }

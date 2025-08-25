@@ -117,6 +117,8 @@ export default function LessonPage({
   const [materials, setMaterials] = useState<LessonMaterial[]>([])
   const [materialsLoading, setMaterialsLoading] = useState(false)
   const materialsLoadedRef = useRef(false)
+  const [lastAssistantMeta, setLastAssistantMeta] = useState<any | null>(null)
+  const [expandedDoc, setExpandedDoc] = useState<number | null>(null)
 
   const { isRecording: chatIsRecording, toggleRecording: chatToggleRecording, stopRecording: stopChatRecording } = useVoiceRecording({
     onRecordingComplete: async (blob) => {
@@ -317,7 +319,7 @@ export default function LessonPage({
     setAiTyping(true)
     const assistant: ChatMsg = { role: 'assistant', content: '' }
     setChatHistory(prev => [...prev, assistant])
-    try {
+  try {
       abortControllerRef.current?.abort()
       const controller = new AbortController()
       abortControllerRef.current = controller
@@ -353,6 +355,14 @@ export default function LessonPage({
           })
         }
       }
+      // после завершения подтягиваем meta
+      try {
+        const metaResp = await fetch(`/api/ai/lesson-chat/last?sessionId=${sessionId}`)
+        if (metaResp.ok) {
+          const data = await metaResp.json()
+          setLastAssistantMeta(data.message?.meta || null)
+        }
+      } catch {}
     } catch (e) {
       if ((e as any)?.name === 'AbortError') {
         assistant.content = assistant.content || '[Остановлено пользователем]'
@@ -748,26 +758,67 @@ export default function LessonPage({
                   <p className="text-sm mt-2">Я помогу разобраться с материалом и дам практические советы!</p>
                 </div>
               )}
-              {chatHistory.map((msg, idx) => (
-                <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} relative group`}>
-                  <div className={`max-w-xs p-3 rounded-lg space-y-2 ${msg.role === 'user' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-900'}`}>
-                    <div>{msg.content}</div>
-                    {msg.audioUrl && (
-                      <audio controls className="w-full mt-1" src={msg.audioUrl} />
+              {chatHistory.map((msg, idx) => {
+                const isAssistant = msg.role === 'assistant'
+                const isLastAssistant = isAssistant && idx === chatHistory.length - 1
+                // Подсветка ссылок [DOCn]
+                let renderedContent: any = msg.content
+                if (isAssistant) {
+                  const parts: (string | { doc: number })[] = []
+                  const regex = /\[DOC(\d+)\]/g
+                  let lastIndex = 0
+                  let m: RegExpExecArray | null
+                  while ((m = regex.exec(msg.content)) !== null) {
+                    if (m.index > lastIndex) parts.push(msg.content.slice(lastIndex, m.index))
+                    parts.push({ doc: Number(m[1]) })
+                    lastIndex = m.index + m[0].length
+                  }
+                  if (lastIndex < msg.content.length) parts.push(msg.content.slice(lastIndex))
+                  renderedContent = parts.map((p, i) => typeof p === 'string' ? <span key={i}>{p}</span> : (
+                    <button
+                      key={i}
+                      type="button"
+                      onClick={() => setExpandedDoc(expandedDoc === p.doc ? null : p.doc)}
+                      className="inline-block mx-0.5 px-1.5 py-0.5 rounded border border-purple-300 bg-purple-50 text-[10px] font-medium text-purple-700 hover:bg-purple-100"
+                    >DOC{p.doc}</button>
+                  ))
+                }
+                return (
+                  <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} relative group`}> 
+                    <div className={`max-w-xs p-3 rounded-lg space-y-2 ${msg.role === 'user' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-900'}`}>
+                      <div className="whitespace-pre-wrap break-words">{renderedContent}</div>
+                      {msg.audioUrl && (
+                        <audio controls className="w-full mt-1" src={msg.audioUrl} />
+                      )}
+                      {isLastAssistant && lastAssistantMeta?.rag && Array.isArray(lastAssistantMeta.rag) && expandedDoc && lastAssistantMeta.rag[expandedDoc-1] && (
+                        <div className="mt-2 p-2 rounded border border-purple-200 bg-white text-xs shadow-sm">
+                          <div className="flex justify-between items-center mb-1">
+                            <span className="font-semibold text-purple-700">Источник DOC{expandedDoc}</span>
+                            <button className="text-[10px] text-gray-500 hover:text-gray-700" onClick={() => setExpandedDoc(null)}>×</button>
+                          </div>
+                          <div className="max-h-40 overflow-y-auto text-gray-700">{lastAssistantMeta.rag[expandedDoc-1].chunk}</div>
+                          <div className="mt-1 flex items-center justify-between">
+                            <span className="text-[10px] text-gray-500">score {Number(lastAssistantMeta.rag[expandedDoc-1].score).toFixed(3)}</span>
+                            {lastAssistantMeta.rag[expandedDoc-1].material_id && (
+                              <a href={`#material-${lastAssistantMeta.rag[expandedDoc-1].material_id}`} className="text-[10px] text-blue-600 underline">к материалу</a>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    {isAssistant && (
+                      <button
+                        type="button"
+                        onClick={() => handlePlayTts(msg.content)}
+                        className="opacity-0 group-hover:opacity-100 transition-opacity absolute -right-8 top-1 text-gray-500 hover:text-gray-800"
+                        title="Прослушать ответ"
+                      >
+                        <Volume1 className="w-4 h-4" />
+                      </button>
                     )}
                   </div>
-                  {msg.role === 'assistant' && (
-                    <button
-                      type="button"
-                      onClick={() => handlePlayTts(msg.content)}
-                      className="opacity-0 group-hover:opacity-100 transition-opacity absolute -right-8 top-1 text-gray-500 hover:text-gray-800"
-                      title="Прослушать ответ"
-                    >
-                      <Volume1 className="w-4 h-4" />
-                    </button>
-                  )}
-                </div>
-              ))}
+                )
+              })}
               {aiTyping && (
                 <div className="flex justify-start">
                   <div className="bg-gray-100 text-gray-900 p-3 rounded-lg">

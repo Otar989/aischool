@@ -44,7 +44,7 @@ export async function POST(req: NextRequest) {
 
     // === RAG: поиск релевантных материалов по сообщению пользователя ===
   let ragText = ''
-  let ragDocs: { chunk: string; score: number }[] = []
+  let ragDocs: { chunk: string; score: number; material_id?: string }[] = []
     try {
       if (message.length > 5) {
         const embModel = process.env.EMBEDDING_MODEL || 'text-embedding-3-small'
@@ -58,10 +58,10 @@ export async function POST(req: NextRequest) {
           setEmbeddingCache(message, vector)
         }
         const ragRes = await query(
-          'SELECT mc.chunk, 1 - (mc.embedding <#> $1::vector) AS score FROM material_chunks mc JOIN course_materials m ON mc.material_id = m.id WHERE m.course_id = $2 ORDER BY mc.embedding <#> $1::vector ASC LIMIT 5',
+          'SELECT mc.material_id, mc.chunk, 1 - (mc.embedding <#> $1::vector) AS score FROM material_chunks mc JOIN course_materials m ON mc.material_id = m.id WHERE m.course_id = $2 ORDER BY mc.embedding <#> $1::vector ASC LIMIT 5',
           [vector, course_id]
         )
-        ragDocs = ragRes.rows.map((r:any)=> ({ chunk: r.chunk, score: Number(r.score) }))
+        ragDocs = ragRes.rows.map((r:any)=> ({ chunk: r.chunk, score: Number(r.score), material_id: r.material_id }))
         ragText = ragDocs.map((r,i)=>`[DOC${i+1} score=${r.score.toFixed(3)}]\n${r.chunk}`).join('\n\n')
       }
     } catch (e) {
