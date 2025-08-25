@@ -2,6 +2,7 @@
 
 import React from "react"
 import Link from "next/link"
+import { usePathname } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { GradientButton } from "@/components/ui/gradient-button"
 import { GlassCard } from "@/components/ui/glass-card"
@@ -10,6 +11,9 @@ import { useState } from "react"
 
 export function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
+  const pathname = usePathname()
+  const ctaHref = "/start"
+  const ctaLabel = pathname === "/promo" ? "На главную" : "Начать обучение"
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 p-4">
@@ -42,7 +46,7 @@ export function Header() {
               <Link href="/promo">Войти</Link>
             </Button>
             <GradientButton asChild>
-              <Link href="/promo">Начать обучение</Link>
+              <Link href={ctaHref}>{ctaLabel}</Link>
             </GradientButton>
           </div>
 
@@ -70,7 +74,7 @@ export function Header() {
                   <Link href="/promo">Войти</Link>
                 </Button>
                 <GradientButton asChild>
-                  <Link href="/promo">Начать обучение</Link>
+                  <Link href={ctaHref}>{ctaLabel}</Link>
                 </GradientButton>
               </div>
             </div>

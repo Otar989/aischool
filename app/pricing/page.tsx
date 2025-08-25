@@ -110,7 +110,7 @@ export default function PricingPage() {
               <div className="mt-auto">
                 {plan.popular ? (
                   <GradientButton className="w-full" asChild>
-                    <Link href="/promo">Начать обучение</Link>
+                    <Link href="/start">Начать обучение</Link>
                   </GradientButton>
                 ) : (
                   <Button variant="outline" className="w-full bg-transparent" asChild>

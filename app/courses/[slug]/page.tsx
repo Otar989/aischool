@@ -65,12 +65,12 @@ export default async function CoursePage({ params }: { params: { slug: string } 
                 </div>
 
                 {firstLesson ? (
-                  <Link href={`/courses/${slug}/lessons/${firstLesson.id}`}>
-                    <Button size="lg" className="w-full sm:w-auto">
+                  <Button asChild size="lg" className="w-full sm:w-auto">
+                    <Link href={`/courses/${slug}/lessons/${firstLesson.id}`}>
                       <Play className="mr-2 h-5 w-5" />
                       Начать изучение
-                    </Button>
-                  </Link>
+                    </Link>
+                  </Button>
                 ) : (
                   <Button size="lg" className="w-full sm:w-auto" disabled>
                     <Play className="mr-2 h-5 w-5" />
@@ -122,11 +122,11 @@ export default async function CoursePage({ params }: { params: { slug: string } 
                       <span className="text-purple-600">🎯 Упражнения</span>
                     </div>
                   </div>
-                  <Link href={`/courses/${slug}/lessons/${lesson.id}`}>
-                    <Button variant="ghost" size="sm">
+                  <Button asChild variant="ghost" size="sm">
+                    <Link href={`/courses/${slug}/lessons/${lesson.id}`}>
                       <Play className="w-4 h-4" />
-                    </Button>
-                  </Link>
+                    </Link>
+                  </Button>
                 </div>
               ))}
             </div>
