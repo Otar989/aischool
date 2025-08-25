@@ -26,6 +26,17 @@ export async function POST(req: NextRequest) {
 
   const code = parse.data.code.trim();
 
+  // Bypass для отладки: если установлен PROMO_BYPASS_CODE и код совпадает — сразу успех
+  if (process.env.PROMO_BYPASS_CODE && code === process.env.PROMO_BYPASS_CODE) {
+    console.warn('[promo] BYPASS success (PROMO_BYPASS_CODE) — удалить в продакшене после теста')
+    const jwt = await signPromoJwt({ bypass: true })
+    const res = NextResponse.json({ ok: true, bypass: true })
+    res.cookies.set('promo_session', jwt, {
+      httpOnly: true, secure: true, sameSite: 'strict', path: '/', maxAge: 60 * 60 * 24 * 30
+    })
+    return res
+  }
+
   const { data: rows, error } = await supabaseAdmin
     .from('promo_codes')
     .select('id, code_hash, max_uses, used_count, expires_at, active')
@@ -45,14 +56,18 @@ export async function POST(req: NextRequest) {
 
   let matched: any = null;
   for (const r of rows) {
+    let plainOk = false
+    let bcryptOk = false
     try {
-      if (r.code_hash === code) { // plaintext fallback
-        matched = r; break;
+      plainOk = r.code_hash === code
+      if (!plainOk && r.code_hash.startsWith('$2')) {
+        bcryptOk = await bcrypt.compare(code, r.code_hash)
       }
-      if (r.code_hash.startsWith('$2') && await bcrypt.compare(code, r.code_hash)) { matched = r; break; }
     } catch (e) {
       console.error('[promo] compare error', e)
     }
+    console.log('[promo][compare]', { id: r.id, plainOk, bcryptOk, hashPrefix: r.code_hash.slice(0, 10) })
+    if (plainOk || bcryptOk) { matched = r; break }
   }
 
   if (!matched) return NextResponse.json({ error: 'Неверный промокод' }, { status: 401 });
