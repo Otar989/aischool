@@ -23,9 +23,19 @@ interface Profile {
   created_at: string
 }
 
+interface RecentLesson {
+  lessonId: string
+  lessonTitle: string
+  courseId: string
+  courseTitle: string
+  courseSlug: string
+  viewedAt: string
+}
+
 export default function DashboardPage() {
   const [profile, setProfile] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(true)
+  const [recent, setRecent] = useState<RecentLesson[]>([])
   const router = useRouter()
   const supabase = createClient()
 
@@ -52,6 +62,18 @@ export default function DashboardPage() {
     }
     load()
   }, [router, supabase])
+
+  // Загрузка последних уроков из localStorage
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    try {
+      const raw = localStorage.getItem('recent_lessons')
+      if (raw) {
+        const arr: RecentLesson[] = JSON.parse(raw)
+        setRecent(arr)
+      }
+    } catch {}
+  }, [])
 
   const handleSignOut = async () => {
     localStorage.removeItem("promo_auth")
@@ -94,21 +116,49 @@ export default function DashboardPage() {
             </Button>
           </GlassCard>
 
+          {/* Быстрый возврат */}
+          {recent.length > 0 && (
+            <GlassCard className="p-6 space-y-4">
+              <div className="flex items-center justify-between">
+                <h2 className="text-lg font-semibold flex items-center gap-2"><BookOpen className="w-5 h-5" /> Недавно просмотренные</h2>
+                <Button variant="ghost" size="sm" onClick={() => { localStorage.removeItem('recent_lessons'); setRecent([]) }} className="text-xs opacity-60 hover:opacity-100">Очистить</Button>
+              </div>
+              <ul className="space-y-2">
+                {recent.slice(0,5).map((l, i) => (
+                  <li key={l.lessonId} className="flex items-center justify-between group">
+                    <div className="min-w-0">
+                      <Link href={`/courses/${l.courseSlug}/lessons/${l.lessonId}`} className="font-medium truncate block group-hover:underline">
+                        {l.lessonTitle}
+                      </Link>
+                      <span className="text-xs text-muted-foreground">{l.courseTitle} • {new Date(l.viewedAt).toLocaleString('ru-RU', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' })}</span>
+                    </div>
+                    {i === 0 && (
+                      <Button size="sm" variant="secondary" asChild>
+                        <Link href={`/courses/${l.courseSlug}/lessons/${l.lessonId}`}>Продолжить</Link>
+                      </Button>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </GlassCard>
+          )}
+
+          {/* Каталог */}
           <GlassCard className="p-8 text-center space-y-4">
-            <BookOpen className="w-10 h-10 text-primary mx-auto" />
-            <h2 className="text-xl font-semibold">Каталог курсов</h2>
-            <p className="text-sm text-muted-foreground max-w-md mx-auto">
-              Откройте каталог и выберите курс, чтобы начать обучение с ИИ‑наставником.
-            </p>
-            <div className="flex justify-center">
-              <Button variant="outline" asChild className="bg-white/10 border-white/20">
-                <Link href="/courses" className="flex items-center">
-                  Перейти
-                  <ArrowRight className="w-4 h-4 ml-1" />
-                </Link>
-              </Button>
-            </div>
-          </GlassCard>
+              <BookOpen className="w-10 h-10 text-primary mx-auto" />
+              <h2 className="text-xl font-semibold">Каталог курсов</h2>
+              <p className="text-sm text-muted-foreground max-w-md mx-auto">
+                {recent.length === 0 ? 'Начните обучение — выберите первый курс из каталога.' : 'Выберите другой курс для изучения.'}
+              </p>
+              <div className="flex justify-center">
+                <Button variant="outline" asChild className="bg-white/10 border-white/20">
+                  <Link href="/courses" className="flex items-center">
+                    Перейти
+                    <ArrowRight className="w-4 h-4 ml-1" />
+                  </Link>
+                </Button>
+              </div>
+            </GlassCard>
         </div>
       </main>
       <Footer />

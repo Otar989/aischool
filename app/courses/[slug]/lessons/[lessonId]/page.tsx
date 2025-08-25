@@ -130,6 +130,29 @@ export default function LessonPage({
       setCurrentPhrase(getVoicePracticePhrase(lessonData.title))
       setCurrentExercise(getExerciseQuestion(lessonData.title))
 
+      // === Недавно просмотренные уроки (localStorage) ===
+      try {
+        const key = 'recent_lessons'
+        const raw = typeof window !== 'undefined' ? localStorage.getItem(key) : null
+        const arr: any[] = raw ? JSON.parse(raw) : []
+        const now = new Date().toISOString()
+        const entry = {
+          lessonId: lessonData.id,
+            lessonTitle: lessonData.title,
+            courseId: courseData.id,
+            courseTitle: courseData.title,
+            courseSlug: slug,
+            viewedAt: now
+        }
+        const filtered = arr.filter(l => l.lessonId !== lessonData.id)
+        filtered.unshift(entry)
+        // Ограничим до 10
+        const limited = filtered.slice(0,10)
+        localStorage.setItem(key, JSON.stringify(limited))
+      } catch (e) {
+        // silent
+      }
+
       // Автостарт или получение существующей чат-сессии
       try {
         const startResp = await fetch('/api/chat/session/start', {
