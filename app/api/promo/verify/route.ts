@@ -10,6 +10,12 @@ export const runtime = 'nodejs';
 const schema = z.object({ code: z.string().min(3).max(64) });
 
 export async function POST(req: NextRequest) {
+  // Диагностика конфигурации Supabase (если переменные не заданы, supabaseAdmin будет стабом)
+  const supabaseConfigured = !!(process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL) && !!(process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE)
+  if (!supabaseConfigured) {
+    return NextResponse.json({ error: 'Сервер: Supabase не настроен' }, { status: 500 })
+  }
+
   const ip = req.headers.get('x-forwarded-for') ?? (req as any).ip ?? '0.0.0.0';
   const { success } = await rl.limit(`promo:${ip}`);
   if (!success) return NextResponse.json({ error: 'Слишком много попыток' }, { status: 429 });
@@ -25,7 +31,17 @@ export async function POST(req: NextRequest) {
     .select('id, code_hash, max_uses, used_count, expires_at, active')
     .eq('active', true);
 
-  if (error || !rows) return NextResponse.json({ error: 'Ошибка сервера' }, { status: 500 });
+  if (error) {
+    console.error('[promo] select error', error)
+    return NextResponse.json({ error: 'Ошибка сервера (select)' }, { status: 500 })
+  }
+  if (!rows) {
+    console.error('[promo] rows undefined')
+    return NextResponse.json({ error: 'Ошибка сервера (no data)' }, { status: 500 })
+  }
+  if (rows.length === 0) {
+    return NextResponse.json({ error: 'Нет активных промокодов' }, { status: 404 })
+  }
 
   let matched: any = null;
   for (const r of rows) {
@@ -40,16 +56,21 @@ export async function POST(req: NextRequest) {
   if (matched.used_count >= matched.max_uses)
     return NextResponse.json({ error: 'Лимит использований исчерпан' }, { status: 401 });
 
-  await supabaseAdmin.from('promo_redemptions').insert({
+  const insertRes = await supabaseAdmin.from('promo_redemptions').insert({
     code_id: matched.id,
     ip,
     user_agent: req.headers.get('user-agent') ?? '',
-  });
-  await supabaseAdmin.rpc('increment_promo_use', { p_code_id: matched.id }).catch(async () => {
+  })
+  if (insertRes.error) {
+    console.error('[promo] redemption insert error', insertRes.error)
+  }
+  const incRes = await supabaseAdmin.rpc('increment_promo_use', { p_code_id: matched.id })
+  if (incRes.error) {
+    console.warn('[promo] rpc increment failed, fallback update')
     await supabaseAdmin.from('promo_codes')
       .update({ used_count: matched.used_count + 1 })
-      .eq('id', matched.id);
-  });
+      .eq('id', matched.id)
+  }
 
   const jwt = await signPromoJwt({ code_id: matched.id });
   const res = NextResponse.json({ ok: true });
