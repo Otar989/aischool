@@ -34,6 +34,18 @@ interface Exercise {
   hint?: string
 }
 
+interface LessonMaterial {
+  id: string
+  kind: 'video' | 'audio' | 'pdf' | 'image' | 'markdown' | 'link' | 'download'
+  title: string
+  description?: string | null
+  src: string
+  position: number
+  is_public: boolean
+  course_id: string
+  lesson_id?: string | null
+}
+
 const supabase = createClient()
 
 interface ChatMsg { role: 'user' | 'assistant'; content: string; audioUrl?: string }
@@ -102,6 +114,9 @@ export default function LessonPage({
   const [selectedVoice, setSelectedVoice] = useState<'nova' | 'alloy'>('nova') // nova=female, alloy=male
   const [showVoiceHint, setShowVoiceHint] = useState(false)
   const ttsCacheRef = useRef<Map<string, HTMLAudioElement>>(new Map())
+  const [materials, setMaterials] = useState<LessonMaterial[]>([])
+  const [materialsLoading, setMaterialsLoading] = useState(false)
+  const materialsLoadedRef = useRef(false)
 
   const { isRecording: chatIsRecording, toggleRecording: chatToggleRecording, stopRecording: stopChatRecording } = useVoiceRecording({
     onRecordingComplete: async (blob) => {
@@ -184,6 +199,21 @@ export default function LessonPage({
       setLesson(lessonData)
       setLessons(lessonsData || [])
       setLoading(false)
+
+      // Загрузка материалов (только публичные)
+      try {
+        setMaterialsLoading(true)
+        const resp = await fetch(`/api/courses/${courseData.id}/materials?lessonId=${lessonData.id}&publishedOnly=1`, { cache: 'no-store' })
+        if (resp.ok) {
+          const data = await resp.json()
+            const list: LessonMaterial[] = data.materials || []
+            setMaterials(list.sort((a,b)=> a.position - b.position))
+        }
+      } catch (e) {
+        // silent
+      } finally {
+        setMaterialsLoading(false)
+      }
 
       setCurrentPhrase(getVoicePracticePhrase(lessonData.title))
       setCurrentExercise(getExerciseQuestion(lessonData.title))
@@ -567,6 +597,71 @@ export default function LessonPage({
               <div dangerouslySetInnerHTML={{ __html: lesson.content.replace(/\n/g, "<br>") }} />
             </div>
           </GlassCard>
+
+          {/* Materials Section */}
+          <div className="mb-10">
+            <h2 className="text-xl font-semibold mb-4 flex items-center gap-2"><BookOpen className="w-5 h-5 text-purple-600" /> Дополнительные материалы</h2>
+            {materialsLoading && <div className="text-sm text-muted-foreground">Загрузка материалов...</div>}
+            {!materialsLoading && materials.length === 0 && (
+              <div className="text-sm text-muted-foreground">Нет доступных дополнительных материалов.</div>
+            )}
+            <div className="space-y-6">
+              {materials.map(mat => {
+                const bucket = process.env.NEXT_PUBLIC_SUPABASE_URL ? process.env.NEXT_PUBLIC_SUPABASE_URL.replace(/\/?$/,'') + '/storage/v1/object/public/' + (process.env.NEXT_PUBLIC_MATERIALS_BUCKET || 'materials') + '/' : ''
+                const publicUrl = bucket ? bucket + mat.src : mat.src
+                return (
+                  <GlassCard key={mat.id} className="p-5" id={`material-${mat.id}`}>
+                    <div className="flex items-start justify-between mb-3 gap-4">
+                      <div>
+                        <h3 className="font-semibold text-lg">{mat.title}</h3>
+                        {mat.description && <p className="text-sm text-muted-foreground mt-1 max-w-prose">{mat.description}</p>}
+                      </div>
+                      <span className="text-[11px] uppercase tracking-wide px-2 py-1 rounded bg-purple-100 text-purple-700 dark:bg-purple-800/40 dark:text-purple-200">{mat.kind}</span>
+                    </div>
+                    <div className="mt-2">
+                      {mat.kind === 'markdown' && (
+                        <a href={publicUrl} target="_blank" rel="noopener" className="text-sm text-blue-600 underline">Открыть markdown</a>
+                      )}
+                      {mat.kind === 'pdf' && (
+                        <div className="border rounded overflow-hidden">
+                          <iframe src={publicUrl} className="w-full h-96 bg-white" title={mat.title} />
+                        </div>
+                      )}
+                      {mat.kind === 'image' && (
+                        <img src={publicUrl} alt={mat.title} className="max-h-96 rounded border" />
+                      )}
+                      {mat.kind === 'audio' && (
+                        <audio controls className="w-full">
+                          <source src={publicUrl} />
+                        </audio>
+                      )}
+                      {mat.kind === 'video' && (/youtu.be|youtube.com/.test(mat.src) ? (
+                        <div className="aspect-video w-full">
+                          <iframe
+                            className="w-full h-full rounded"
+                            src={mat.src.replace('watch?v=', 'embed/')}
+                            title={mat.title}
+                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                            allowFullScreen
+                          />
+                        </div>
+                      ) : (
+                        <video controls className="w-full rounded border max-h-[600px]">
+                          <source src={publicUrl} />
+                        </video>
+                      ))}
+                      {mat.kind === 'link' && (
+                        <a href={mat.src} target="_blank" rel="noopener" className="text-sm text-blue-600 underline">Перейти по ссылке</a>
+                      )}
+                      {mat.kind === 'download' && (
+                        <a href={publicUrl} download className="text-sm text-blue-600 underline">Скачать файл</a>
+                      )}
+                    </div>
+                  </GlassCard>
+                )
+              })}
+            </div>
+          </div>
 
           {/* Interactive Features */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
