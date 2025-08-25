@@ -41,24 +41,41 @@ export default function DashboardPage() {
 
   useEffect(() => {
     const load = async () => {
-      // Проверка промо локального пользователя (временный механизм)
-      const promoAuth = typeof window !== "undefined" ? localStorage.getItem("promo_auth") : null
-      const promoUserData = typeof window !== "undefined" ? localStorage.getItem("promo_user") : null
-      if (promoAuth === "true" && promoUserData) {
-        setProfile(JSON.parse(promoUserData))
-        setLoading(false)
-        return
+      try {
+        // 1. Пробуем Supabase сессию (если пользователь входил классически)
+        const { data } = await supabase.auth.getUser()
+        if (data.user) {
+          const { data: p } = await supabase
+            .from("users")
+            .select("id,email,full_name,avatar_url,created_at")
+            .eq("id", data.user.id)
+            .single()
+          if (p) {
+            setProfile(p)
+            setLoading(false)
+            return
+          }
+        }
+        // 2. Иначе проверяем promo_session
+        const promoResp = await fetch('/api/promo/session', { cache: 'no-store' })
+        if (promoResp.ok) {
+          const js = await promoResp.json().catch(()=>null)
+          const exp = js?.payload?.exp ? new Date(js.payload.exp * 1000).toISOString() : new Date().toISOString()
+            setProfile({
+              id: 'promo',
+              email: js?.payload?.bypass ? 'bypass@promo.local' : 'promo@user.local',
+              full_name: 'Участник',
+              avatar_url: undefined,
+              created_at: exp
+            })
+          setLoading(false)
+          return
+        }
+        // 3. Нет ни supabase, ни промо
+        router.replace('/promo')
+      } catch {
+        router.replace('/promo')
       }
-
-      const { data } = await supabase.auth.getUser()
-      const user = data.user
-      if (!user) {
-        router.replace("/promo")
-        return
-      }
-      const { data: p } = await supabase.from("users").select("id,email,full_name,avatar_url,created_at").eq("id", user.id).single()
-      if (p) setProfile(p)
-      setLoading(false)
     }
     load()
   }, [router, supabase])
@@ -76,10 +93,9 @@ export default function DashboardPage() {
   }, [])
 
   const handleSignOut = async () => {
-    localStorage.removeItem("promo_auth")
-    localStorage.removeItem("promo_user")
-    await supabase.auth.signOut()
-    router.replace("/")
+    try { await fetch('/api/promo/logout', { method: 'POST' }) } catch {}
+    await supabase.auth.signOut().catch(()=>{})
+    router.replace('/')
   }
 
   if (loading) {
