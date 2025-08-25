@@ -11,6 +11,7 @@ const navigation = [
   { name: "Аналитика", href: "/admin/analytics", icon: BarChart3 },
   { name: "Пользователи", href: "/admin/users", icon: Users },
   { name: "Курсы", href: "/admin/courses", icon: BookOpen },
+  { name: "Материалы", href: "/admin/materials", icon: FileText },
   { name: "Контент", href: "/admin/content", icon: FileText },
   { name: "Чат-сессии", href: "/admin/chat-sessions", icon: MessageSquare },
   { name: "Платежи", href: "/admin/payments", icon: CreditCard },
