@@ -42,7 +42,8 @@ export async function POST(req: NextRequest) {
   const { title, content_md, course_id } = lessonRes.rows[0]
 
     // === RAG: поиск релевантных материалов по сообщению пользователя ===
-    let ragText = ''
+  let ragText = ''
+  let ragDocs: { chunk: string; score: number }[] = []
     try {
       if (message.length > 5) {
         const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY, baseURL: process.env.OPENAI_API_BASE_URL })
@@ -54,7 +55,8 @@ export async function POST(req: NextRequest) {
           'SELECT mc.chunk, 1 - (mc.embedding <#> $1::vector) AS score FROM material_chunks mc JOIN course_materials m ON mc.material_id = m.id WHERE m.course_id = $2 ORDER BY mc.embedding <#> $1::vector ASC LIMIT 5',
           [vector, course_id]
         )
-        ragText = ragRes.rows.map((r:any,i:number)=>`[DOC${i+1} score=${Number(r.score).toFixed(3)}]\n${r.chunk}`).join('\n\n')
+        ragDocs = ragRes.rows.map((r:any)=> ({ chunk: r.chunk, score: Number(r.score) }))
+        ragText = ragDocs.map((r,i)=>`[DOC${i+1} score=${r.score.toFixed(3)}]\n${r.chunk}`).join('\n\n')
       }
     } catch (e) {
       // не фейлим основную логику, просто логируем
@@ -119,9 +121,9 @@ export async function POST(req: NextRequest) {
           try {
             const assistantTokens = estimateTokens(fullResponse)
             await query(
-              `INSERT INTO chat_messages (session_id, user_id, lesson_id, role, modality, content_text, tokens_used, created_at)
-               VALUES ($1,$2,$3,'assistant','text',$4,$5,NOW())`,
-              [sessionId, user.id, lessonId, fullResponse, assistantTokens]
+              `INSERT INTO chat_messages (session_id, user_id, lesson_id, role, modality, content_text, tokens_used, created_at, meta)
+               VALUES ($1,$2,$3,'assistant','text',$4,$5,NOW(), $6::jsonb)`,
+              [sessionId, user.id, lessonId, fullResponse, assistantTokens, JSON.stringify({ rag: ragDocs })]
             )
             // Optional: update aggregate if column exists
             try { await query(`UPDATE chat_sessions SET total_tokens = COALESCE(total_tokens,0) + $1 WHERE id = $2`, [userTokens + assistantTokens, sessionId]) } catch {}
