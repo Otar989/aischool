@@ -39,24 +39,23 @@ export default function PromoPage() {
     const formData = new FormData(e.currentTarget)
     const code = formData.get("promoCode") as string
 
-    if (code.toLowerCase() === "welcomeai") {
-      localStorage.setItem("promo_auth", "true")
-      localStorage.setItem(
-        "promo_user",
-        JSON.stringify({
-          id: "promo-user",
-          email: "promo@aischool.ru",
-          full_name: "Пользователь по промокоду",
-          role: "student",
-          created_at: new Date().toISOString(),
-        }),
-      )
-
-      setTimeout(() => {
-        router.push("/dashboard")
-      }, 500)
-    } else {
-      setError("Неверный промокод. Попробуйте еще раз.")
+    try {
+      const r = await fetch('/api/promo/verify', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ code })
+      })
+      if (r.ok) {
+        // cookie выставлена на сервере
+        router.replace('/')
+        return
+      } else {
+        const data = await r.json().catch(()=>({}))
+        setError(data.error || 'Ошибка проверки')
+      }
+    } catch (err) {
+      setError('Сетевая ошибка')
+    } finally {
       setIsLoading(false)
     }
   }

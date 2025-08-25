@@ -7,7 +7,8 @@
     "dev": "next dev",
     "lint": "next lint",
     "start": "next start",
-    "test": "vitest run"
+  "test": "vitest run",
+  "promo:generate": "ts-node scripts/generate-promo.ts"
   },
   "dependencies": {
     "@edge-runtime/vm": "latest",
@@ -60,7 +61,11 @@
     "input-otp": "latest",
     "knex": "latest",
     "kysely": "latest",
-    "lucide-react": "^0.454.0",
+  "lucide-react": "^0.454.0",
+  "bcryptjs": "^2.4.3",
+  "jose": "^5.7.0",
+  "@upstash/ratelimit": "^1.0.0",
+  "@upstash/redis": "^1.34.3",
     "next": "14.2.16",
     "next-themes": "latest",
     "openai": "latest",
@@ -89,6 +94,7 @@
     "@testing-library/jest-dom": "^6.7.0",
     "@testing-library/react": "^16.3.0",
     "@types/node": "^22",
+  "@types/bcryptjs": "^2.4.2",
     "@types/react": "^18",
     "@types/react-dom": "^18",
     "@vitejs/plugin-react": "^5.0.0",

@@ -1,23 +1,27 @@
-import type { NextRequest } from "next/server"
+import { NextResponse } from 'next/server'
+import type { NextRequest } from 'next/server'
+import { jwtVerify } from 'jose'
 
-export function middleware(request: NextRequest) {
-  // Simple path-based middleware without external dependencies
-  const { pathname } = request.nextUrl
+export async function middleware(req: NextRequest) {
+  const { pathname } = req.nextUrl
 
-  // Allow all requests to pass through for now
-  // Add custom logic here if needed without importing supabase-js
-  return
+  if (pathname.startsWith('/promo') || pathname.startsWith('/legal')) {
+    return NextResponse.next()
+  }
+
+  const token = req.cookies.get('promo_session')?.value
+  if (!token) return NextResponse.redirect(new URL('/promo', req.url))
+
+  try {
+    const secret = new TextEncoder().encode(process.env.JWT_SECRET!)
+    const { payload } = await jwtVerify(token, secret)
+    if ((payload as any).scope !== 'promo') throw new Error('bad scope')
+    return NextResponse.next()
+  } catch {
+    return NextResponse.redirect(new URL('/promo', req.url))
+  }
 }
 
 export const config = {
-  matcher: [
-    /*
-     * Match all request paths except for the ones starting with:
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     * Feel free to modify this pattern to include more paths.
-     */
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
-  ],
+  matcher: ['/((?!_next|static|images|favicon.ico|robots.txt|sitemap.xml|legal/.*|promo).*)'],
 }
