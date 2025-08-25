@@ -96,19 +96,16 @@ export default function DashboardPage() {
 
           <GlassCard className="p-8 text-center space-y-4">
             <BookOpen className="w-10 h-10 text-primary mx-auto" />
-            <h2 className="text-xl font-semibold">Продолжить обучение</h2>
+            <h2 className="text-xl font-semibold">Каталог курсов</h2>
             <p className="text-sm text-muted-foreground max-w-md mx-auto">
-              Перейдите к подборке курсов или начните с первого доступного урока.
+              Откройте каталог и выберите курс, чтобы начать обучение с ИИ‑наставником.
             </p>
-            <div className="flex flex-wrap gap-3 justify-center">
-              <GradientButton asChild>
-                <Link href="/start" className="flex items-center">
-                  Начать
+            <div className="flex justify-center">
+              <Button variant="outline" asChild className="bg-white/10 border-white/20">
+                <Link href="/courses" className="flex items-center">
+                  Перейти
                   <ArrowRight className="w-4 h-4 ml-1" />
                 </Link>
-              </GradientButton>
-              <Button variant="outline" asChild className="bg-white/10 border-white/20">
-                <Link href="/courses">Каталог курсов</Link>
               </Button>
             </div>
           </GlassCard>
