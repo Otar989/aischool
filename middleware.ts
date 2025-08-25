@@ -35,10 +35,17 @@ export async function middleware(req: NextRequest) {
     return NextResponse.next()
   }
 
+  const strict = process.env.PROMO_STRICT === '1'
+  if (!strict) {
+    // Мягкий режим: наличие cookie достаточно
+    if (process.env.PROMO_DEBUG) console.warn('[promo][middleware] soft mode pass')
+    return NextResponse.next()
+  }
+
   try {
     const secretStr = process.env.JWT_SECRET
     if (!secretStr) {
-      if (process.env.PROMO_DEBUG) console.error('[promo][middleware] Missing JWT_SECRET; allowing pass')
+      if (process.env.PROMO_DEBUG) console.error('[promo][middleware] Missing JWT_SECRET; allowing pass (strict off)')
       return NextResponse.next()
     }
     const secret = new TextEncoder().encode(secretStr)
