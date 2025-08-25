@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
   if (process.env.PROMO_BYPASS_CODE && code === process.env.PROMO_BYPASS_CODE) {
     console.warn('[promo] BYPASS success (PROMO_BYPASS_CODE) — удалить в продакшене после теста')
     const jwt = await signPromoJwt({ bypass: true })
-    const res = NextResponse.json({ ok: true, bypass: true })
+    const res = NextResponse.json({ ok: true, bypass: true, debug: process.env.PROMO_DEBUG ? { bypass: true } : undefined })
     res.cookies.set('promo_session', jwt, {
       httpOnly: true, secure: true, sameSite: 'strict', path: '/', maxAge: 60 * 60 * 24 * 30
     })
@@ -70,7 +70,9 @@ export async function POST(req: NextRequest) {
     if (plainOk || bcryptOk) { matched = r; break }
   }
 
-  if (!matched) return NextResponse.json({ error: 'Неверный промокод' }, { status: 401 });
+  if (!matched) {
+    return NextResponse.json({ error: 'Неверный промокод', debug: process.env.PROMO_DEBUG ? { tried: code, rows: rows.length } : undefined }, { status: 401 });
+  }
 
   if (matched.expires_at && new Date(matched.expires_at) < new Date())
     return NextResponse.json({ error: 'Срок действия истёк' }, { status: 401 });
@@ -95,7 +97,7 @@ export async function POST(req: NextRequest) {
   }
 
   const jwt = await signPromoJwt({ code_id: matched.id });
-  const res = NextResponse.json({ ok: true });
+  const res = NextResponse.json({ ok: true, debug: process.env.PROMO_DEBUG ? { matched: matched.id } : undefined });
 
   res.cookies.set('promo_session', jwt, {
     httpOnly: true, secure: true, sameSite: 'strict', path: '/', maxAge: 60 * 60 * 24 * 30
