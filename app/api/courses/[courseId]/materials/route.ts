@@ -23,7 +23,7 @@ export async function GET(req: NextRequest, { params }: { params: { courseId: st
     if (parsed.lessonId) query = query.eq('lesson_id', parsed.lessonId)
     if (parsed.moduleId) query = query.eq('module_id', parsed.moduleId)
     if (parsed.kind) query = query.eq('kind', parsed.kind)
-  if (parsed.publishedOnly && !(await isAdminRequest(req))) query = query.eq('is_published', true)
+  if (parsed.publishedOnly && !(await isAdminRequest(req))) query = query.eq('is_public', true)
 
     const { data, error } = await query.order('position', { ascending: true })
     if (error) throw error
