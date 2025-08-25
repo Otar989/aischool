@@ -81,3 +81,36 @@ The course modules rely on Supabase for data. Configure the following environmen
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 - `SUPABASE_SERVICE_ROLE_KEY`
 - `DATABASE_URL`
+
+## Материалы курсов / RAG
+
+### Таблицы
+- `course_materials`: kind, src, is_public, position, indexed_at
+- `material_chunks`: chunk, embedding (vector(1536))
+
+### Индексирование
+POST `/api/materials/index` { materialId } — извлекает текст (markdown/pdf), режет на ~1800 символов, эмбеддинги (`text-embedding-3-small`), сохраняет в `material_chunks`, проставляет `indexed_at`.
+Список неиндексированных: GET `/api/materials/unindexed`.
+Массово: POST `/api/materials/unindexed` { ids: [] }.
+
+CLI:
+```
+ts-node scripts/materials-index.ts <material-uuid>
+ts-node scripts/materials-index-all.ts
+```
+
+### Поиск
+POST `/api/materials/search` { q, limit?, course_id? } → top-N чанков (пока только админ).
+
+### Импорт
+CSV: `ts-node scripts/import-materials-csv.ts file.csv`
+JSON: `ts-node scripts/import-materials-json.ts file.json`
+ZIP: `ts-node scripts/import-materials-zip.ts archive.zip <course_id>` (определяет kind по расширению, загружает в bucket, создаёт записи).
+
+CSV колонки: `course_id,lesson_id,kind,title,src,description,is_public,position`
+
+### ENV
+```
+EMBEDDING_MODEL=text-embedding-3-small
+SUPABASE_STORAGE_BUCKET_MATERIALS=materials
+```

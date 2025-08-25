@@ -3,6 +3,7 @@ import { requireAuth } from '@/lib/auth'
 import { rl } from '@/lib/ratelimit'
 import { query } from '@/lib/db'
 import OpenAI from 'openai'
+import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { z } from 'zod'
 
 const bodySchema = z.object({
@@ -34,14 +35,34 @@ export async function POST(req: NextRequest) {
       return new Response('Lesson mismatch', { status: 400 })
     }
 
-    const lessonRes = await query('SELECT title, content_md FROM lessons WHERE id = $1 LIMIT 1', [lessonId])
+  const lessonRes = await query('SELECT title, content_md, course_id FROM lessons WHERE id = $1 LIMIT 1', [lessonId])
     if (lessonRes.rows.length === 0) {
       return new Response('Lesson not found', { status: 404 })
     }
-    const { title, content_md } = lessonRes.rows[0]
+  const { title, content_md, course_id } = lessonRes.rows[0]
 
-  const systemPrompt = `You are an AI tutor. Help the student understand the lesson. Lesson title: ${title}. Use only information from lesson when possible and answer in Russian. If you are unsure, ask a clarifying question. Keep answers concise.`
-    const context = (content_md || '').toString().slice(0, 8000)
+    // === RAG: поиск релевантных материалов по сообщению пользователя ===
+    let ragText = ''
+    try {
+      if (message.length > 5) {
+        const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY, baseURL: process.env.OPENAI_API_BASE_URL })
+        const embModel = process.env.EMBEDDING_MODEL || 'text-embedding-3-small'
+        const emb = await openai.embeddings.create({ model: embModel, input: message })
+        const vector = emb.data[0].embedding
+        // ограничим количеством материалов
+        const ragRes = await query(
+          'SELECT mc.chunk, 1 - (mc.embedding <#> $1::vector) AS score FROM material_chunks mc JOIN course_materials m ON mc.material_id = m.id WHERE m.course_id = $2 ORDER BY mc.embedding <#> $1::vector ASC LIMIT 5',
+          [vector, course_id]
+        )
+        ragText = ragRes.rows.map((r:any,i:number)=>`[DOC${i+1} score=${Number(r.score).toFixed(3)}]\n${r.chunk}`).join('\n\n')
+      }
+    } catch (e) {
+      // не фейлим основную логику, просто логируем
+      console.error('RAG fetch failed', e)
+    }
+
+    const systemPrompt = `You are an AI tutor. Help the student understand the lesson. Lesson title: ${title}. Use only information from lesson or the provided supplemental documents when relevant and answer in Russian. If unsure, ask for clarification. Keep answers concise.`
+    const context = (content_md || '').toString().slice(0, 8000) + (ragText ? `\n\nSupplemental Docs:\n${ragText}` : '')
 
     const openaiKey = process.env.OPENAI_API_KEY
     if (!openaiKey) {
@@ -63,7 +84,7 @@ export async function POST(req: NextRequest) {
       `SELECT role, content_text FROM chat_messages WHERE session_id = $1 ORDER BY created_at ASC LIMIT 50`,
       [sessionId]
     )
-    const trimmed = historyRes.rows.map(r => ({ role: (r.role === 'system' ? 'system' : r.role === 'assistant' ? 'assistant' : 'user') as 'user' | 'assistant' | 'system', content: r.content_text }))
+  const trimmed = historyRes.rows.map((r: any) => ({ role: (r.role === 'system' ? 'system' : r.role === 'assistant' ? 'assistant' : 'user') as 'user' | 'assistant' | 'system', content: r.content_text }))
     const chatMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
       { role: 'system', content: systemPrompt + '\n\nLesson Content (truncated):\n' + context },
       ...trimmed
