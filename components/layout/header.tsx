@@ -19,14 +19,21 @@ export function Header() {
   const ctaLabel = isAuthed ? "Каталог" : pathname === "/promo" ? "На главную" : "Начать обучение"
 
   useEffect(() => {
-    // Простая проверка cookie promo_session на клиенте
-    const has = document.cookie.includes('promo_session=')
-    setIsAuthed(has)
+    let cancelled = false
+    const check = async () => {
+      try {
+        const resp = await fetch('/api/promo/session', { cache: 'no-store' })
+        if (!cancelled) setIsAuthed(resp.ok)
+      } catch {
+        if (!cancelled) setIsAuthed(false)
+      }
+    }
+    check()
+    return () => { cancelled = true }
   }, [pathname])
 
-  const handleLogout = () => {
-    // Удаляем cookie промо (невозможно напрямую без сервера — делаем истёкшую) + localStorage следы
-    document.cookie = 'promo_session=; Max-Age=0; path=/; SameSite=Strict'
+  const handleLogout = async () => {
+    try { await fetch('/api/promo/logout', { method: 'POST' }) } catch {}
     localStorage.removeItem('promo_auth')
     localStorage.removeItem('promo_user')
     setIsAuthed(false)
