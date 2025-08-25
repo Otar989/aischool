@@ -14,9 +14,12 @@ export async function POST(req: NextRequest) {
   await requireAdmin(req)
     const body = await req.json()
     const { materialId } = schema.parse(body)
-    // Fetch material
+    // Fetch material + check already indexed
     const { data: mat, error } = await supabaseAdmin.from('course_materials').select('*').eq('id', materialId).single()
     if (error || !mat) throw new Error('material not found')
+    if (mat.indexed_at) {
+      return NextResponse.json({ ok: true, skipped: true, reason: 'already indexed', chunks: 0 })
+    }
     if (!['pdf','markdown'].includes(mat.kind)) {
       return NextResponse.json({ skipped: true, reason: 'kind not indexable' })
     }
@@ -54,18 +57,31 @@ export async function POST(req: NextRequest) {
     const model = process.env.EMBEDDING_MODEL || 'text-embedding-3-small'
 
     const embedded: { chunk: string; embedding: number[] }[] = []
-    for (const c of chunks) {
-      if (!c.trim()) continue
-      const emb = await openai.embeddings.create({ model, input: c })
-      embedded.push({ chunk: c, embedding: emb.data[0].embedding as unknown as number[] })
+    // Batch embed in groups for efficiency (OpenAI supports multiple inputs)
+    const batchSize = 10
+    for (let start = 0; start < chunks.length; start += batchSize) {
+      const slice = chunks.slice(start, start + batchSize).filter(c => c.trim())
+      if (slice.length === 0) continue
+      const emb = await openai.embeddings.create({ model, input: slice })
+      emb.data.forEach((d, idx) => {
+        embedded.push({ chunk: slice[idx], embedding: d.embedding as unknown as number[] })
+      })
     }
 
-    // Insert chunks
-    for (const e of embedded) {
-      await query('INSERT INTO material_chunks (material_id, chunk, embedding) VALUES ($1,$2,$3)', [materialId, e.chunk, JSON.stringify(e.embedding)])
+    if (embedded.length) {
+      // Construct multi-values insert with parameterization
+      const values: string[] = []
+      const params: any[] = []
+      embedded.forEach((e, idx) => {
+        params.push(materialId, e.chunk, JSON.stringify(e.embedding))
+        const base = idx * 3
+        values.push(`($${base+1}, $${base+2}, $${base+3})`)
+      })
+      await query(`INSERT INTO material_chunks (material_id, chunk, embedding) VALUES ${values.join(',')}` , params)
     }
+    await query('UPDATE course_materials SET indexed_at = now() WHERE id = $1', [materialId])
 
-    return NextResponse.json({ ok: true, chunks: embedded.length })
+    return NextResponse.json({ ok: true, chunks: embedded.length, skipped: false })
   } catch (e:any) {
     return NextResponse.json({ error: e.message }, { status: 400 })
   }
