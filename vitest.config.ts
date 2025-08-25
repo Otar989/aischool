@@ -4,14 +4,25 @@ import path from 'node:path'
 
 export default defineConfig({
   plugins: [react()],
+  resolve: { alias: { '@': path.resolve(__dirname, '.') } },
   test: {
-    environment: 'node',
-    include: ['tests/**/*.test.{ts,tsx}'],
-    setupFiles: './tests/setup.ts',
-  },
-  resolve: {
-    alias: {
-      '@': path.resolve(__dirname, '.'),
-    },
-  },
+    projects: [
+      {
+        test: {
+          name: 'unit',
+          environment: 'node',
+          include: ['tests/**/*.test.{ts,tsx}', '!tests/**/*.ui.test.{ts,tsx}'],
+          setupFiles: ['./tests/setup.node.ts']
+        }
+      },
+      {
+        test: {
+          name: 'ui',
+          environment: 'jsdom',
+          include: ['tests/**/*.ui.test.{ts,tsx}'],
+          setupFiles: ['./tests/setup.ui.ts']
+        }
+      }
+    ]
+  }
 })
