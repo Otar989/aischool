@@ -24,6 +24,10 @@ export function Header() {
       try {
         const resp = await fetch('/api/promo/session', { cache: 'no-store' })
         if (!cancelled) setIsAuthed(resp.ok)
+        if (resp.ok) {
+          // fire-and-forget refresh (не блокируем UI)
+          fetch('/api/promo/refresh').catch(()=>{})
+        }
       } catch {
         if (!cancelled) setIsAuthed(false)
       }
