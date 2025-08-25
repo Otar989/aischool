@@ -46,8 +46,8 @@ export default function PromoPage() {
         body: JSON.stringify({ code })
       })
       if (r.ok) {
-        // cookie выставлена на сервере — ведём сразу в обучающий поток
-        router.replace('/start')
+        // cookie выставлена на сервере — ведём сразу в личный кабинет
+        router.replace('/dashboard')
         return
       } else {
         const data = await r.json().catch(()=>({}))
