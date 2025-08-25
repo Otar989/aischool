@@ -38,7 +38,7 @@ export async function POST(req: NextRequest) {
     res.cookies.set('promo_session', jwt, {
       httpOnly: true,
       secure: !isLocal,
-      sameSite: 'strict',
+      sameSite: 'lax',
       path: '/',
       maxAge: 60 * 60 * 24 * 30
     })
@@ -111,7 +111,7 @@ export async function POST(req: NextRequest) {
   res.cookies.set('promo_session', jwt, {
     httpOnly: true,
     secure: !isLocal,
-    sameSite: 'strict',
+    sameSite: 'lax',
     path: '/',
     maxAge: 60 * 60 * 24 * 30
   });
