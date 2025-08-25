@@ -161,6 +161,7 @@ export default function LessonPage({
     if (!contentEl) return
 
     function handleScroll() {
+      if (!contentEl) return
       const rect = contentEl.getBoundingClientRect()
       const viewport = window.innerHeight
       const total = rect.height
@@ -212,6 +213,15 @@ export default function LessonPage({
         body: JSON.stringify({ lessonId: lesson.id, sessionId, message: userMsg.content }),
         signal: controller.signal
       })
+      if (resp.status === 429) {
+        assistant.content = 'Слишком много запросов. Попробуйте чуть позже.'
+        setChatHistory(prev => {
+          const copy = [...prev]
+            copy[copy.length - 1] = { ...assistant }
+            return copy
+        })
+        return
+      }
       if (!resp.body) throw new Error('no stream')
       const reader = resp.body.getReader()
       const decoder = new TextDecoder()
@@ -248,6 +258,15 @@ export default function LessonPage({
   const handleStop = () => {
     abortControllerRef.current?.abort()
     setAiTyping(false)
+  }
+
+  const handleStopStreaming = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort()
+      abortControllerRef.current = null
+      setAiTyping(false)
+      toast.info('Остановлено')
+    }
   }
 
   const handleVoiceToggle = () => {
@@ -470,9 +489,15 @@ export default function LessonPage({
                 className="flex-1"
                 onKeyPress={(e) => e.key === "Enter" && !e.shiftKey && (e.preventDefault(), handleSendMessage())}
               />
-              <Button onClick={handleSendMessage} disabled={aiTyping}>
-                <Send className="h-4 w-4" />
-              </Button>
+              {aiTyping ? (
+                <Button variant="destructive" onClick={handleStopStreaming}>
+                  <StopCircle className="h-4 w-4" />
+                </Button>
+              ) : (
+                <Button onClick={handleSendMessage} disabled={aiTyping}>
+                  <Send className="h-4 w-4" />
+                </Button>
+              )}
             </div>
           </div>
         </DialogContent>
