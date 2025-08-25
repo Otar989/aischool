@@ -7,18 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Textarea } from "@/components/ui/textarea"
-import {
-  ArrowLeft,
-  ArrowRight,
-  MessageCircle,
-  Mic,
-  BookOpen,
-  Send,
-  MicIcon,
-  Square,
-  Volume2,
-  Pause,
-} from "lucide-react"
+import { ArrowLeft, ArrowRight, MessageCircle, Mic, BookOpen, Send, MicIcon, Square, Volume2, Pause } from "lucide-react"
 import { notFound } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import Link from "next/link"
@@ -46,35 +35,7 @@ interface Exercise {
 
 const supabase = createClient()
 
-const getAIResponse = (message: string, lessonTitle: string) => {
-  const responses = {
-    chatgpt: [
-      "ChatGPT может автоматизировать создание контента, отвечать на вопросы клиентов и помогать в анализе данных.",
-      "Для эффективного использования ChatGPT важно правильно формулировать промпты и задавать контекст.",
-      "ChatGPT особенно полезен для создания email-рассылок, описаний товаров и ответов в социальных сетях.",
-    ],
-    business: [
-      "В бизнесе AI помогает экономить время на рутинных задачах и улучшать качество коммуникации с клиентами.",
-      "Автоматизация с помощью AI может увеличить продуктивность команды на 40-60%.",
-      "Важно начинать внедрение AI с простых задач, постепенно расширяя область применения.",
-    ],
-    default: [
-      "Отличный вопрос! Этот материал поможет вам лучше понять практическое применение изученных концепций.",
-      "Рекомендую попробовать применить эти знания на практике в своих проектах.",
-      "Если у вас есть конкретные примеры из вашей работы, я помогу адаптировать материал под ваши задачи.",
-    ],
-  }
-
-  const messageKey =
-    message.toLowerCase().includes("chatgpt") || message.toLowerCase().includes("чат")
-      ? "chatgpt"
-      : message.toLowerCase().includes("бизнес") || message.toLowerCase().includes("автоматизация")
-        ? "business"
-        : "default"
-
-  const responseArray = responses[messageKey]
-  return responseArray[Math.floor(Math.random() * responseArray.length)]
-}
+interface ChatMsg { role: 'user' | 'assistant'; content: string }
 
 const getVoicePracticePhrase = (lessonTitle: string) => {
   const phrases = [
@@ -115,12 +76,14 @@ export default function LessonPage({
   const [lesson, setLesson] = useState<Lesson | null>(null)
   const [lessons, setLessons] = useState<Lesson[]>([])
   const [loading, setLoading] = useState(true)
+  const [progressPct, setProgressPct] = useState(0)
+  const [completionSent, setCompletionSent] = useState(false)
 
   const [chatOpen, setChatOpen] = useState(false)
   const [voiceOpen, setVoiceOpen] = useState(false)
   const [exerciseOpen, setExerciseOpen] = useState(false)
   const [chatMessage, setChatMessage] = useState("")
-  const [chatHistory, setChatHistory] = useState<{ role: string; content: string }[]>([])
+  const [chatHistory, setChatHistory] = useState<ChatMsg[]>([])
   const [isRecording, setIsRecording] = useState(false)
   const [exerciseAnswer, setExerciseAnswer] = useState("")
 
@@ -133,7 +96,7 @@ export default function LessonPage({
   const recordingInterval = useRef<NodeJS.Timeout>()
 
   useEffect(() => {
-    async function loadData() {
+  async function loadData() {
       const { data: courseData } = await supabase
         .from("courses")
         .select("*")
@@ -169,22 +132,87 @@ export default function LessonPage({
     loadData()
   }, [slug, lessonId])
 
+  // Прогресс по прокрутке: считаем высоту текстового блока
+  useEffect(() => {
+    if (!lesson) return
+    const contentEl = document.querySelector('[data-lesson-content]') as HTMLElement | null
+    if (!contentEl) return
+
+    function handleScroll() {
+      const rect = contentEl.getBoundingClientRect()
+      const viewport = window.innerHeight
+      const total = rect.height
+      // часть которая уже ушла вверх + видимая часть
+      const scrolledInside = Math.min(Math.max(0, viewport - Math.max(0, rect.bottom - viewport)), total)
+      // альтернативно проще: позиция окна относительно верхней границы блока
+      const topOffset = Math.max(0, -rect.top)
+      const progress = Math.min(100, Math.max(scrolledInside, topOffset) / total * 100)
+      setProgressPct(progress)
+    }
+    handleScroll()
+    window.addEventListener('scroll', handleScroll, { passive: true })
+    window.addEventListener('resize', handleScroll)
+    return () => {
+      window.removeEventListener('scroll', handleScroll)
+      window.removeEventListener('resize', handleScroll)
+    }
+  }, [lesson])
+
+  // Отправка completion при достижении 90%
+  useEffect(() => {
+    if (completionSent) return
+    if (progressPct >= 90 && lesson) {
+      fetch('/api/lessons/complete', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ lessonId: lesson.id })
+      }).catch(()=>{})
+      setCompletionSent(true)
+    }
+  }, [progressPct, lesson, completionSent])
+
   const handleSendMessage = async () => {
-    if (!chatMessage.trim()) return
-
-    const newMessage = { role: "user", content: chatMessage }
-    setChatHistory((prev) => [...prev, newMessage])
-    setChatMessage("")
+    if (!chatMessage.trim() || !lesson) return
+    const userMsg: ChatMsg = { role: 'user', content: chatMessage }
+    setChatHistory(prev => [...prev, userMsg])
+    const toSend = chatMessage
+    setChatMessage('')
     setAiTyping(true)
-
-    setTimeout(() => {
-      const aiResponse = {
-        role: "assistant",
-        content: getAIResponse(chatMessage, lesson?.title || ""),
+    const assistant: ChatMsg = { role: 'assistant', content: '' }
+    setChatHistory(prev => [...prev, assistant])
+    try {
+      const resp = await fetch('/api/ai/lesson-chat', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ lessonId: lesson.id, messages: [...chatHistory, userMsg].slice(-20) })
+      })
+      if (!resp.body) throw new Error('no stream')
+      const reader = resp.body.getReader()
+      const decoder = new TextDecoder()
+      let done = false
+      while (!done) {
+        const { value, done: d } = await reader.read()
+        done = d
+        if (value) {
+          const chunk = decoder.decode(value)
+          assistant.content += chunk
+          setChatHistory(prev => {
+            const copy = [...prev]
+            copy[copy.length - 1] = { ...assistant }
+            return copy
+          })
+        }
       }
-      setChatHistory((prev) => [...prev, aiResponse])
+    } catch (e) {
+      assistant.content = assistant.content || 'Ошибка AI'
+      setChatHistory(prev => {
+        const copy = [...prev]
+        copy[copy.length - 1] = { ...assistant }
+        return copy
+      })
+    } finally {
       setAiTyping(false)
-    }, 1500)
+    }
   }
 
   const handleVoiceToggle = () => {
@@ -282,13 +310,13 @@ export default function LessonPage({
           <div className="mb-6">
             <div className="flex items-center justify-between mb-2">
               <span className="text-sm font-medium">Прогресс урока</span>
-              <span className="text-sm text-muted-foreground">0%</span>
+              <span className="text-sm text-muted-foreground">{Math.round(progressPct)}%</span>
             </div>
-            <Progress value={0} className="h-2" />
+            <Progress value={progressPct} className="h-2" />
           </div>
 
           {/* Lesson Content */}
-          <GlassCard className="p-8 mb-6">
+          <GlassCard className="p-8 mb-6" data-lesson-content>
             <div className="prose prose-lg max-w-none">
               <div dangerouslySetInnerHTML={{ __html: lesson.content.replace(/\n/g, "<br>") }} />
             </div>
