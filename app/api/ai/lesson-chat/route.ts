@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 import { requireAuth } from '@/lib/auth'
-import { rl } from '@/lib/ratelimit'
+import { rl, embeddingsRl } from '@/lib/ratelimit'
 import { query } from '@/lib/db'
 import OpenAI from 'openai'
 import { getEmbeddingFromCache, setEmbeddingCache } from '@/lib/ragCache'
@@ -48,10 +48,13 @@ export async function POST(req: NextRequest) {
     try {
       if (message.length > 5) {
         const embModel = process.env.EMBEDDING_MODEL || 'text-embedding-3-small'
-        // 10 минут TTL
         const TTL = 10 * 60 * 1000
         let vector = getEmbeddingFromCache(message, TTL)
         if (!vector) {
+          const embLimit = await embeddingsRl.limit(`emb:${user.id}`)
+          if (!embLimit.success) {
+            throw new Error('embedding rate limit')
+          }
           const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY, baseURL: process.env.OPENAI_API_BASE_URL })
           const emb = await openai.embeddings.create({ model: embModel, input: message })
           vector = emb.data[0].embedding

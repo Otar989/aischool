@@ -14,6 +14,7 @@ const navigation = [
   { name: "Материалы", href: "/admin/materials", icon: FileText },
   { name: "Контент", href: "/admin/content", icon: FileText },
   { name: "Чат-сессии", href: "/admin/chat-sessions", icon: MessageSquare },
+  { name: "RAG Аналитика", href: "/admin/rag", icon: BarChart3 },
   { name: "Платежи", href: "/admin/payments", icon: CreditCard },
   { name: "Настройки", href: "/admin/settings", icon: Settings },
 ]

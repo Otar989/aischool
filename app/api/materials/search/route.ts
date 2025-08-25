@@ -5,6 +5,7 @@ import { getEmbeddingFromCache, setEmbeddingCache } from '@/lib/ragCache'
 import { query } from '@/lib/db'
 import { isAdminRequest } from '@/lib/admin'
 import { cookies } from 'next/headers'
+import { embeddingsRl } from '@/lib/ratelimit'
 
 export const runtime = 'nodejs'
 
@@ -20,6 +21,8 @@ export async function POST(req: NextRequest) {
     const TTL = 10 * 60 * 1000
     let vector = getEmbeddingFromCache(q, TTL)
     if (!vector) {
+      const embLimit = await embeddingsRl.limit(`emb-search:${admin? 'admin': hasPromo? 'promo':'pub'}:${q.slice(0,32)}`)
+      if (!embLimit.success) throw new Error('rate limited')
       const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY, baseURL: process.env.OPENAI_API_BASE_URL })
       const emb = await openai.embeddings.create({ model, input: q })
       vector = emb.data[0].embedding
