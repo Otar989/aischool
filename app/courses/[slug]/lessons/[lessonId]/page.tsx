@@ -141,6 +141,19 @@ export default function LessonPage({
         .eq("is_published", true)
         .maybeSingle<Course>()
       if (!courseData) {
+        const policyErr = courseErr?.message || ''
+        if (/policy/i.test(policyErr)) {
+          // Fallback mock course
+          const mockCourse: Course = { id: 'mock-'+slug, title: 'Демо курс', }
+          ;(mockCourse as any).duration = 0
+          setCourse(mockCourse)
+          // Provide minimal mock lesson content
+          const mockLesson: Lesson = { id: lessonId, title: 'Демо урок', duration: 5, content: '<p>Демонстрационный контент недоступен из-за ограничений доступа к базе данных. Используется временный текст.</p>', order_index: 0, course_id: mockCourse.id }
+          setLesson(mockLesson)
+          setLessons([mockLesson])
+          setLoading(false)
+          return
+        }
         setLoadError(courseErr?.message || 'Курс не найден или недоступен')
         setLoading(false)
         return
@@ -154,6 +167,14 @@ export default function LessonPage({
 
       const lessonData = lessonsData?.find((l) => l.id === lessonId)
       if (!lessonData) {
+        const policyErr = lessonsErr?.message || ''
+        if (/policy/i.test(policyErr)) {
+          const mockLesson: Lesson = { id: lessonId, title: 'Демо урок', duration: 5, content: '<p>Демонстрационный контент урока: доступ к настоящему содержимому временно ограничен политиками БД.</p>', order_index: 0, course_id: courseData.id }
+          setLesson(mockLesson)
+          setLessons([mockLesson])
+          setLoading(false)
+          return
+        }
         setLoadError(lessonsErr?.message || 'Урок не найден')
         setLoading(false)
         return
