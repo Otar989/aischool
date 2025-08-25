@@ -36,7 +36,7 @@ interface Exercise {
 
 const supabase = createClient()
 
-interface ChatMsg { role: 'user' | 'assistant'; content: string }
+interface ChatMsg { role: 'user' | 'assistant'; content: string; audioUrl?: string }
 
 const getVoicePracticePhrase = (lessonTitle: string) => {
   const phrases = [
@@ -96,14 +96,18 @@ export default function LessonPage({
   const [sessionId, setSessionId] = useState<string | null>(null)
   const abortControllerRef = useRef<AbortController | null>(null)
   const [voiceTranscribing, setVoiceTranscribing] = useState(false)
+  const [chatRecordingSeconds, setChatRecordingSeconds] = useState(0)
+  const lastRecordingUrlRef = useRef<string | null>(null)
   const ttsCacheRef = useRef<Map<string, HTMLAudioElement>>(new Map())
 
-  const { isRecording: chatIsRecording, toggleRecording: chatToggleRecording } = useVoiceRecording({
+  const { isRecording: chatIsRecording, toggleRecording: chatToggleRecording, stopRecording: stopChatRecording } = useVoiceRecording({
     onRecordingComplete: async (blob) => {
       try {
         setVoiceTranscribing(true)
         const fd = new FormData()
         fd.append('file', blob, 'audio.webm')
+        // Сохраняем локально ссылку на оригинал записи чтобы прикрепить к сообщению
+        try { lastRecordingUrlRef.current = URL.createObjectURL(blob) } catch {}
         const resp = await fetch('/api/chat/voice/transcribe', { method: 'POST', body: fd })
         if (!resp.ok) throw new Error('fail')
         const data = await resp.json()
@@ -117,6 +121,7 @@ export default function LessonPage({
         toast.error('Ошибка распознавания')
       } finally {
         setVoiceTranscribing(false)
+        setChatRecordingSeconds(0)
       }
     },
     onError: () => toast.error('Ошибка записи')
@@ -246,10 +251,11 @@ export default function LessonPage({
 
   const handleSendMessage = async () => {
     if (!chatMessage.trim() || !lesson || !sessionId) return
-    const userMsg: ChatMsg = { role: 'user', content: chatMessage }
+    const userMsg: ChatMsg = { role: 'user', content: chatMessage, audioUrl: lastRecordingUrlRef.current || undefined }
     setChatHistory(prev => [...prev, userMsg])
     const toSend = chatMessage
     setChatMessage('')
+    lastRecordingUrlRef.current = null
     setAiTyping(true)
     const assistant: ChatMsg = { role: 'assistant', content: '' }
     setChatHistory(prev => [...prev, assistant])
@@ -335,9 +341,9 @@ export default function LessonPage({
         body: JSON.stringify({ text })
       })
       if (!resp.ok) throw new Error('TTS error')
-      const data = await resp.json()
-      if (!data.audioUrl) throw new Error('Нет audioUrl')
-      const audio = new Audio(data.audioUrl)
+      const blob = await resp.blob()
+      const url = URL.createObjectURL(blob)
+      const audio = new Audio(url)
       ttsCacheRef.current.set(key, audio)
       await audio.play()
     } catch (e) {
@@ -345,6 +351,24 @@ export default function LessonPage({
       toast.error('Ошибка воспроизведения')
     }
   }
+
+  // Таймер записи и автостоп для голосового ввода чата
+  useEffect(() => {
+    if (chatIsRecording) {
+      setChatRecordingSeconds(0)
+      const interval = setInterval(() => {
+        setChatRecordingSeconds(prev => {
+          if (prev + 1 >= 60) {
+            // автостоп по достижении 60 сек
+            stopChatRecording()
+            return 60
+          }
+          return prev + 1
+        })
+      }, 1000)
+      return () => clearInterval(interval)
+    }
+  }, [chatIsRecording, stopChatRecording])
 
   const handleVoiceToggle = () => {
     if (isRecording) {
@@ -531,7 +555,12 @@ export default function LessonPage({
               )}
               {chatHistory.map((msg, idx) => (
                 <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} relative group`}>
-                  <div className={`max-w-xs p-3 rounded-lg ${msg.role === 'user' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-900'}`}>{msg.content}</div>
+                  <div className={`max-w-xs p-3 rounded-lg space-y-2 ${msg.role === 'user' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-900'}`}>
+                    <div>{msg.content}</div>
+                    {msg.audioUrl && (
+                      <audio controls className="w-full mt-1" src={msg.audioUrl} />
+                    )}
+                  </div>
                   {msg.role === 'assistant' && (
                     <button
                       type="button"
@@ -573,7 +602,14 @@ export default function LessonPage({
                   onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), handleSendMessage())}
                 />
                 <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                  {chatIsRecording && <span className="text-red-600">● Запись...</span>}
+                  {chatIsRecording && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-red-600">● Запись {chatRecordingSeconds}s</span>
+                      <div className="w-24 h-1 bg-red-200 rounded overflow-hidden">
+                        <div className="h-full bg-red-600 transition-all" style={{ width: `${(chatRecordingSeconds/60)*100}%` }}></div>
+                      </div>
+                    </div>
+                  )}
                   {voiceTranscribing && <span>Распознавание...</span>}
                 </div>
               </div>
