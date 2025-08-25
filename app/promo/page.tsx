@@ -46,9 +46,21 @@ export default function PromoPage() {
         body: JSON.stringify({ code })
       })
       if (r.ok) {
-        // cookie выставлена на сервере — ведём сразу в личный кабинет
-        router.replace('/dashboard')
-        return
+        // cookie должна быть установлена — проверим через отдельный endpoint, чтобы поймать проблемы установки
+        let redirected = false
+        try {
+          const check = await fetch('/api/promo/session', { cache: 'no-store' })
+          if (check.ok) {
+            router.replace('/dashboard')
+            redirected = true
+          } else {
+            const dbg = await check.json().catch(()=>null)
+            setError('Сессия не установлена (cookie). Причина: ' + (dbg?.reason || 'unknown'))
+          }
+        } catch {
+          setError('Не удалось проверить сессию')
+        }
+        if (redirected) return
       } else {
         const data = await r.json().catch(()=>({}))
         setError(data.error || 'Ошибка проверки')
