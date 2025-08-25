@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { jwtVerify } from 'jose'
+import { verifyPromoJwt } from '@/lib/jwt'
 
 export const runtime = 'nodejs'
 
@@ -7,11 +7,12 @@ export async function GET(req: NextRequest) {
   const token = req.cookies.get('promo_session')?.value
   if (!token) return NextResponse.json({ ok: false, reason: 'no-cookie' }, { status: 401 })
   try {
-    const secret = new TextEncoder().encode(process.env.JWT_SECRET || 'undefined')
-    const { payload } = await jwtVerify(token, secret)
-    if ((payload as any).scope !== 'promo') throw new Error('bad-scope')
+    const payload = await verifyPromoJwt(token)
     return NextResponse.json({ ok: true, payload })
   } catch (e:any) {
-    return NextResponse.json({ ok: false, reason: e.message }, { status: 401 })
+    if (process.env.PROMO_DEBUG) {
+      console.error('[promo][session][verify-fail]', e.message)
+    }
+    return NextResponse.json({ ok: false, reason: e.message, debug: process.env.PROMO_DEBUG ? { tokenStart: token.slice(0,20) } : undefined }, { status: 401 })
   }
 }

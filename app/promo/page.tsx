@@ -46,13 +46,25 @@ export default function PromoPage() {
         body: JSON.stringify({ code })
       })
       if (r.ok) {
-        // cookie должна быть установлена — проверим через отдельный endpoint, чтобы поймать проблемы установки
-        let redirected = false
+        // Попробуем подождать пока браузер применит cookie и просто перейти
+        const waitForCookie = async () => {
+          for (let i=0;i<5;i++) { // до ~500мс
+            if (document.cookie.includes('promo_session=')) return true
+            await new Promise(res=>setTimeout(res,100))
+          }
+          return document.cookie.includes('promo_session=')
+        }
+        const has = await waitForCookie()
+        if (has) {
+          router.replace('/dashboard')
+          return
+        }
+        // fallback: явная проверка endpoint
         try {
           const check = await fetch('/api/promo/session', { cache: 'no-store' })
           if (check.ok) {
             router.replace('/dashboard')
-            redirected = true
+            return
           } else {
             const dbg = await check.json().catch(()=>null)
             setError('Сессия не установлена (cookie). Причина: ' + (dbg?.reason || 'unknown'))
@@ -60,7 +72,6 @@ export default function PromoPage() {
         } catch {
           setError('Не удалось проверить сессию')
         }
-        if (redirected) return
       } else {
         const data = await r.json().catch(()=>({}))
         setError(data.error || 'Ошибка проверки')

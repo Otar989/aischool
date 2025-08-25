@@ -27,12 +27,20 @@ export async function POST(req: NextRequest) {
   const code = parse.data.code.trim();
 
   // Bypass для отладки: если установлен PROMO_BYPASS_CODE и код совпадает — сразу успех
+  const host = req.headers.get('host') || ''
+  const isLocal = host.startsWith('localhost') || host.startsWith('127.0.0.1')
+
   if (process.env.PROMO_BYPASS_CODE && code === process.env.PROMO_BYPASS_CODE) {
     console.warn('[promo] BYPASS success (PROMO_BYPASS_CODE) — удалить в продакшене после теста')
     const jwt = await signPromoJwt({ bypass: true })
     const res = NextResponse.json({ ok: true, bypass: true, debug: process.env.PROMO_DEBUG ? { bypass: true } : undefined })
+    res.headers.set('X-Promo-Debug', 'bypass')
     res.cookies.set('promo_session', jwt, {
-      httpOnly: true, secure: true, sameSite: 'strict', path: '/', maxAge: 60 * 60 * 24 * 30
+      httpOnly: true,
+      secure: !isLocal,
+      sameSite: 'strict',
+      path: '/',
+      maxAge: 60 * 60 * 24 * 30
     })
     return res
   }
@@ -99,8 +107,13 @@ export async function POST(req: NextRequest) {
   const jwt = await signPromoJwt({ code_id: matched.id });
   const res = NextResponse.json({ ok: true, debug: process.env.PROMO_DEBUG ? { matched: matched.id } : undefined });
 
+  res.headers.set('X-Promo-Debug', 'matched')
   res.cookies.set('promo_session', jwt, {
-    httpOnly: true, secure: true, sameSite: 'strict', path: '/', maxAge: 60 * 60 * 24 * 30
+    httpOnly: true,
+    secure: !isLocal,
+    sameSite: 'strict',
+    path: '/',
+    maxAge: 60 * 60 * 24 * 30
   });
 
   return res;
