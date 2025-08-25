@@ -1,0 +1,94 @@
+import { NextRequest } from 'next/server'
+import { requireAuth } from '@/lib/auth'
+import { rl } from '@/lib/ratelimit'
+import { query } from '@/lib/db'
+import OpenAI from 'openai'
+import { z } from 'zod'
+
+const bodySchema = z.object({
+  lessonId: z.string(),
+  messages: z.array(z.object({
+    role: z.enum(['user','assistant','system']).default('user'),
+    content: z.string().min(1)
+  })).min(1).max(30)
+})
+
+export const runtime = 'nodejs'
+
+export async function POST(req: NextRequest) {
+  try {
+    const user = await requireAuth()
+
+    const { success, pending, limit, reset } = await rl.limit(`lesson-chat:${user.id}`)
+    if (!success) {
+      return new Response('Rate limit exceeded', { status: 429, headers: { 'Retry-After': Math.max(0, reset - Date.now()).toString() } })
+    }
+
+    const json = await req.json()
+    const { lessonId, messages } = bodySchema.parse(json)
+
+    const lessonRes = await query('SELECT title, content_md FROM lessons WHERE id = $1 LIMIT 1', [lessonId])
+    if (lessonRes.rows.length === 0) {
+      return new Response('Lesson not found', { status: 404 })
+    }
+    const { title, content_md } = lessonRes.rows[0]
+
+    const systemPrompt = `You are an AI tutor. Help the student understand the lesson. Lesson title: ${title}. Use only information from lesson when possible and answer in Russian. If you are unsure, ask a clarifying question. Keep answers concise.`
+    const context = (content_md || '').toString().slice(0, 8000)
+
+    const openaiKey = process.env.OPENAI_API_KEY
+    if (!openaiKey) {
+      return new Response('OPENAI_API_KEY not configured', { status: 500 })
+    }
+
+    const client = new OpenAI({ apiKey: openaiKey, baseURL: process.env.OPENAI_API_BASE_URL })
+
+    // Prepare chat messages (truncate history to last 20 messages for safety)
+    const trimmed = messages.slice(-20).map(m => ({ role: m.role as 'user' | 'assistant' | 'system', content: m.content }))
+    const chatMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
+      { role: 'system', content: systemPrompt + '\n\nLesson Content (truncated):\n' + context },
+      ...trimmed
+    ]
+
+    const completion = await client.chat.completions.create({
+      model: 'gpt-4o-mini',
+      stream: true,
+      messages: chatMessages,
+    })
+
+    const encoder = new TextEncoder()
+
+    let fullResponse = ''
+
+    const stream = new ReadableStream<Uint8Array>({
+      async start(controller) {
+        try {
+          for await (const part of completion) {
+            const delta = part.choices[0]?.delta?.content || ''
+            if (delta) {
+              fullResponse += delta
+              controller.enqueue(encoder.encode(delta))
+            }
+          }
+        } catch (err: any) {
+          console.error('Streaming error:', err)
+          controller.enqueue(encoder.encode('\n[Ошибка генерации ответа]'))
+        } finally {
+          controller.close()
+          // TODO: persist (session / messages) after streaming once persistence layer finalised
+        }
+      }
+    })
+
+    return new Response(stream, {
+      headers: {
+        'Content-Type': 'text/plain; charset=utf-8',
+        'X-RateLimit-Limit': limit.toString(),
+        'X-RateLimit-Remaining': pending.toString(),
+      }
+    })
+  } catch (e: any) {
+    console.error('lesson-chat endpoint error', e)
+    return new Response('Internal error', { status: 500 })
+  }
+}
