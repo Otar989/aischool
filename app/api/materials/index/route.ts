@@ -11,7 +11,7 @@ const schema = z.object({ materialId: z.string().uuid() })
 
 export async function POST(req: NextRequest) {
   try {
-    requireAdmin(req)
+  await requireAdmin(req)
     const body = await req.json()
     const { materialId } = schema.parse(body)
     // Fetch material
