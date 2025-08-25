@@ -52,5 +52,39 @@ export async function GET(req: NextRequest) {
   `
   const res = await query(sql, [])
   const body = res.rows[0] || {}
-  return NextResponse.json({ ...body, range })
+
+  // daily trend (только если есть interval)
+  let trend: any[] = []
+  if (interval) {
+    // вычисляем стартовую дату
+    const daysBack = interval.startsWith('1 ') ? 1 : interval.startsWith('7 ') ? 7 : interval.startsWith('30 ') ? 30 : 7
+    const trendSql = `WITH days AS (
+      SELECT generate_series::date AS day
+      FROM generate_series((CURRENT_DATE - INTERVAL '${daysBack - 1} day')::date, CURRENT_DATE, INTERVAL '1 day')
+    ), base AS (
+      SELECT date_trunc('day', created_at)::date AS day, role, meta
+      FROM chat_messages
+      WHERE role='assistant' AND created_at >= CURRENT_DATE - INTERVAL '${daysBack - 1} day'
+    ), agg AS (
+      SELECT day,
+        COUNT(*) FILTER (WHERE role='assistant') AS assistant_msgs,
+        COUNT(*) FILTER (WHERE role='assistant' AND meta ? 'rag') AS rag_msgs,
+        AVG(sub.score) FILTER (WHERE sub.rn=1) AS avg_top1_score
+      FROM base
+      LEFT JOIN LATERAL (
+        SELECT (elem->>'score')::numeric AS score,
+               row_number() OVER (ORDER BY (elem->>'score')::numeric DESC) rn
+        FROM jsonb_array_elements(base.meta->'rag') elem
+        WHERE base.meta ? 'rag'
+      ) sub ON true
+      GROUP BY day
+    )
+    SELECT d.day, COALESCE(a.assistant_msgs,0) assistant_msgs, COALESCE(a.rag_msgs,0) rag_msgs, COALESCE(a.avg_top1_score,0) avg_top1_score
+    FROM days d
+    LEFT JOIN agg a ON d.day = a.day
+    ORDER BY d.day`
+    const trendRes = await query(trendSql, [])
+    trend = trendRes.rows
+  }
+  return NextResponse.json({ ...body, range, trend })
 }
