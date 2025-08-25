@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Textarea } from "@/components/ui/textarea"
-import { ArrowLeft, ArrowRight, MessageCircle, Mic, BookOpen, Send, MicIcon, Square, Volume2, Pause } from "lucide-react"
+import { ArrowLeft, ArrowRight, MessageCircle, Mic, BookOpen, Send, MicIcon, Square, Volume2, Pause, StopCircle } from "lucide-react"
 import { notFound } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import Link from "next/link"
@@ -93,6 +93,7 @@ export default function LessonPage({
   const [recordingTime, setRecordingTime] = useState(0)
   const [aiTyping, setAiTyping] = useState(false)
   const [sessionId, setSessionId] = useState<string | null>(null)
+  const abortControllerRef = useRef<AbortController | null>(null)
 
   const recordingInterval = useRef<NodeJS.Timeout>()
 
@@ -139,6 +140,11 @@ export default function LessonPage({
         if (startResp.ok) {
           const data = await startResp.json()
           setSessionId(data.sessionId)
+          // загрузка истории (фильтруем системные для UI)
+          const hist = (data.messages || []).filter((m: any) => m.role === 'user' || m.role === 'assistant').map((m: any) => ({ role: m.role, content: m.content }))
+          setChatHistory(hist)
+        } else {
+          console.error('Failed start session', await startResp.text())
         }
       } catch (e) {
         console.error('Failed to start chat session', e)
@@ -197,10 +203,14 @@ export default function LessonPage({
     const assistant: ChatMsg = { role: 'assistant', content: '' }
     setChatHistory(prev => [...prev, assistant])
     try {
+      abortControllerRef.current?.abort()
+      const controller = new AbortController()
+      abortControllerRef.current = controller
       const resp = await fetch('/api/ai/lesson-chat', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ lessonId: lesson.id, sessionId, message: userMsg.content })
+        body: JSON.stringify({ lessonId: lesson.id, sessionId, message: userMsg.content }),
+        signal: controller.signal
       })
       if (!resp.body) throw new Error('no stream')
       const reader = resp.body.getReader()
@@ -220,7 +230,11 @@ export default function LessonPage({
         }
       }
     } catch (e) {
-      assistant.content = assistant.content || 'Ошибка AI'
+      if ((e as any)?.name === 'AbortError') {
+        assistant.content = assistant.content || '[Остановлено пользователем]'
+      } else {
+        assistant.content = assistant.content || (e instanceof Error ? e.message : 'Ошибка AI')
+      }
       setChatHistory(prev => {
         const copy = [...prev]
         copy[copy.length - 1] = { ...assistant }
@@ -229,6 +243,11 @@ export default function LessonPage({
     } finally {
       setAiTyping(false)
     }
+  }
+
+  const handleStop = () => {
+    abortControllerRef.current?.abort()
+    setAiTyping(false)
   }
 
   const handleVoiceToggle = () => {

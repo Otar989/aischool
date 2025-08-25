@@ -14,64 +14,75 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { courseId, lessonId } = startSessionSchema.parse(body)
 
-    // Check if user has access to the course
+    // 1. Access check
     const hasAccess = await checkCourseAccess(user.id, courseId)
     if (!hasAccess) {
       return NextResponse.json({ error: "Access denied" }, { status: 403 })
     }
 
-    // Create new chat session
-    const result = await query(
-      `INSERT INTO chat_sessions (user_id, course_id, lesson_id, started_at)
-       VALUES ($1, $2, $3, NOW())
-       RETURNING id, started_at`,
-      [user.id, courseId, lessonId],
+    // 2. Try to find existing session for this lesson
+    const existing = await query(
+      `SELECT id, started_at FROM chat_sessions
+       WHERE user_id = $1 AND lesson_id = $2
+       ORDER BY started_at DESC
+       LIMIT 1`,
+      [user.id, lessonId],
     )
 
-    if (result.rows.length === 0) {
-      return NextResponse.json({ error: "Failed to create chat session" }, { status: 500 })
+    let sessionId: string
+    let startedAt: string
+    if (existing.rows.length > 0) {
+      sessionId = existing.rows[0].id
+      startedAt = existing.rows[0].started_at
+    } else {
+      // 3. Create new session
+      const createRes = await query(
+        `INSERT INTO chat_sessions (user_id, course_id, lesson_id, started_at)
+         VALUES ($1,$2,$3,NOW())
+         RETURNING id, started_at`,
+        [user.id, courseId, lessonId],
+      )
+      if (createRes.rows.length === 0) {
+        return NextResponse.json({ error: "Failed to create chat session" }, { status: 500 })
+      }
+      sessionId = createRes.rows[0].id
+      startedAt = createRes.rows[0].started_at
+
+      // Seed system + greeting messages
+      const systemContent = `Вы ИИ-наставник для урока. Ведите диалог дружелюбно, но строго. Помогайте студенту изучать материал, задавайте наводящие вопросы, не давайте готовые ответы сразу.`
+      const greetContent = `Привет! Я ваш ИИ-наставник. Готовы изучать новый материал? Если у вас есть вопросы по уроку, смело задавайте их!`
+
+      await query(
+        `INSERT INTO chat_messages (session_id, user_id, lesson_id, role, modality, content_text, tokens_used, created_at)
+         VALUES ($1,$2,$3,'system','text',$4,$5,NOW()),
+                ($1,$2,$3,'assistant','text',$6,$7,NOW())`,
+        [
+          sessionId,
+          user.id,
+          lessonId,
+          systemContent,
+          estimateTokens(systemContent),
+          greetContent,
+          estimateTokens(greetContent),
+        ],
+      )
     }
 
-    const session = result.rows[0]
-
-    // Add initial system message
-    await query(
-      `INSERT INTO chat_messages (session_id, user_id, lesson_id, role, modality, content_text, tokens_used, created_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())`,
-      [
-        session.id,
-        user.id,
-        lessonId,
-        "system",
-        "text",
-        `Вы ИИ-наставник для урока. Ведите диалог дружелюбно, но строго. Помогайте студенту изучать материал, задавайте наводящие вопросы, не давайте готовые ответы сразу.`,
-        estimateTokens(
-          "Вы ИИ-наставник для урока. Ведите диалог дружелюбно, но строго. Помогайте студенту изучать материал, задавайте наводящие вопросы, не давайте готовые ответы сразу.",
-        ),
-      ],
+    // 4. Load history (without system if want cleaner UI, but оставим все — фильтрует клиент)
+    const historyRes = await query(
+      `SELECT role, content_text, created_at FROM chat_messages
+       WHERE session_id = $1
+       ORDER BY created_at ASC
+       LIMIT 100`,
+      [sessionId],
     )
+    const messages = historyRes.rows.map((r) => ({
+      role: r.role,
+      content: r.content_text,
+      createdAt: r.created_at,
+    }))
 
-    // Add welcome message
-    await query(
-      `INSERT INTO chat_messages (session_id, user_id, lesson_id, role, modality, content_text, tokens_used, created_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())`,
-      [
-        session.id,
-        user.id,
-        lessonId,
-        "assistant",
-        "text",
-        `Привет! Я ваш ИИ-наставник. Готовы изучать новый материал? Если у вас есть вопросы по уроку, смело задавайте их!`,
-        estimateTokens(
-          "Привет! Я ваш ИИ-наставник. Готовы изучать новый материал? Если у вас есть вопросы по уроку, смело задавайте их!",
-        ),
-      ],
-    )
-
-    return NextResponse.json({
-      sessionId: session.id,
-      startedAt: session.started_at,
-    })
+    return NextResponse.json({ sessionId, startedAt, messages })
   } catch (error) {
     console.error("Error starting chat session:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
