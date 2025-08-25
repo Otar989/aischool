@@ -94,6 +94,7 @@ export default function LessonPage({
   const [recordingTime, setRecordingTime] = useState(0)
   const [aiTyping, setAiTyping] = useState(false)
   const [sessionId, setSessionId] = useState<string | null>(null)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const abortControllerRef = useRef<AbortController | null>(null)
   const [voiceTranscribing, setVoiceTranscribing] = useState(false)
   const [chatRecordingSeconds, setChatRecordingSeconds] = useState(0)
@@ -133,26 +134,28 @@ export default function LessonPage({
 
   useEffect(() => {
   async function loadData() {
-      const { data: courseData } = await supabase
+      const { data: courseData, error: courseErr } = await supabase
         .from("courses")
         .select("*")
         .eq("slug", slug)
         .eq("is_published", true)
         .maybeSingle<Course>()
       if (!courseData) {
-        notFound()
+        setLoadError(courseErr?.message || 'Курс не найден или недоступен')
+        setLoading(false)
         return
       }
 
-      const { data: lessonsData } = (await supabase
+      const { data: lessonsData, error: lessonsErr } = await supabase
         .from("lessons")
         .select("*")
         .eq("course_id", courseData.id)
-        .order("order_index", { ascending: true })) as { data: Lesson[] | null }
+        .order("order_index", { ascending: true })
 
       const lessonData = lessonsData?.find((l) => l.id === lessonId)
       if (!lessonData) {
-        notFound()
+        setLoadError(lessonsErr?.message || 'Урок не найден')
+        setLoading(false)
         return
       }
 
@@ -494,8 +497,15 @@ export default function LessonPage({
     return <div className="min-h-screen flex items-center justify-center">Загрузка...</div>
   }
 
+  if (loadError) {
+    return <div className="min-h-screen flex flex-col items-center justify-center gap-4 px-6 text-center">
+      <p className="text-red-600 font-medium">Не удалось загрузить урок: {loadError}</p>
+      <a href={`/courses/${slug}`} className="text-blue-600 underline">Вернуться к курсу</a>
+    </div>
+  }
+
   if (!course || !lesson) {
-    notFound()
+    return <div className="min-h-screen flex items-center justify-center">Урок недоступен</div>
   }
 
   const currentLessonIndex = lessons.findIndex((l) => l.id === lessonId)

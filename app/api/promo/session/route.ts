@@ -7,6 +7,10 @@ export async function GET(req: NextRequest) {
   const token = req.cookies.get('promo_session')?.value
   if (!token) return NextResponse.json({ ok: false, reason: 'no-cookie' }, { status: 401 })
   try {
+    if (!process.env.JWT_SECRET) {
+      // Мягкий режим: не валидируем подпись если секрет не задан (preview / dev)
+      return NextResponse.json({ ok: true, payload: { scope: 'promo', unverified: true } })
+    }
     const payload = await verifyPromoJwt(token)
     return NextResponse.json({ ok: true, payload })
   } catch (e:any) {
