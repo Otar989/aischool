@@ -184,11 +184,18 @@ export default async function CoursesPage({
       {/* Hero Section */}
       <section className="pt-24 md:pt-32 pb-8 md:pb-12 px-4 md:px-6">
         <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-8 md:mb-12">
-            <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold font-sans mb-3 md:mb-4">Каталог курсов</h1>
-            <p className="text-lg md:text-xl text-muted-foreground font-serif max-w-2xl mx-auto px-2">
-              Выберите курс и начните обучение с персональным ИИ-наставником уже сегодня
-            </p>
+          <div className="text-center mb-8 md:mb-12 space-y-4">
+            <div>
+              <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold font-sans mb-3 md:mb-4">Каталог курсов</h1>
+              <p className="text-lg md:text-xl text-muted-foreground font-serif max-w-2xl mx-auto px-2">
+                Выберите курс и начните обучение с персональным ИИ-наставником уже сегодня
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center justify-center gap-3">
+              <Link href="/courses/ai/new" className="inline-flex items-center rounded-md bg-gradient-to-r from-purple-600 to-blue-600 text-white text-sm font-medium px-5 py-2 shadow hover:from-purple-500 hover:to-blue-500 transition">
+                <span className="mr-2">✨</span> Сгенерировать AI курс
+              </Link>
+            </div>
           </div>
 
           {/* Search and Filters */}
