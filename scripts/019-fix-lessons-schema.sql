@@ -1,6 +1,6 @@
 -- 019-fix-lessons-schema.sql
 -- Выравнивание схемы под новый AI функционал.
--- Запускать ОДИН раз в Prod (или безопасно повторно — все IF NOT EXISTS).
+-- Использует нативный синтаксис PostgreSQL (ALTER TABLE ... ADD COLUMN IF NOT EXISTS). Некоторые локальные линтеры могут ругаться — игнорируйте.
 
 -- 1. COURSES: добавить недостающие столбцы
 ALTER TABLE courses ADD COLUMN IF NOT EXISTS price numeric DEFAULT 0;
