@@ -24,9 +24,21 @@ interface Lesson {
   id: string
   title: string
   duration: number
-  content: string
+  content: string // may contain HTML or JSON string
   order_index: number
   course_id: string
+}
+
+type AIGeneratedLessonContent = {
+  generator?: 'ai-course'
+  kind: 'text' | 'quiz' | 'practice' | 'voice'
+  body?: string
+  question?: string
+  options?: string[]
+  correctIndex?: number
+  explanation?: string
+  prompt?: string
+  phrase?: string
 }
 
 interface Exercise {
@@ -575,6 +587,80 @@ export default function LessonPage({
   const previousLesson = currentLessonIndex > 0 ? lessons[currentLessonIndex - 1] : null
   const nextLesson = currentLessonIndex < lessons.length - 1 ? lessons[currentLessonIndex + 1] : null
 
+  function QuizBlock({ parsed }: { parsed: AIGeneratedLessonContent }) {
+    const [selected, setSelected] = useState<number | null>(null)
+    const [revealed, setRevealed] = useState(false)
+    if (!parsed.question || !parsed.options) return <div className="text-sm text-muted-foreground">Недостаточно данных для квиза.</div>
+    const correct = typeof parsed.correctIndex === 'number' ? parsed.correctIndex : -1
+    return (
+      <div className="space-y-4">
+        <h2 className="text-2xl font-semibold">{parsed.question}</h2>
+        <ul className="space-y-2">
+          {parsed.options.map((opt, idx) => {
+            const isSel = selected === idx
+            const isCorrect = revealed && idx === correct
+            const isWrong = revealed && isSel && idx !== correct
+            return (
+              <li key={idx}>
+                <button
+                  type="button"
+                  onClick={() => !revealed && setSelected(idx)}
+                  className={
+                    'w-full text-left px-4 py-2 rounded border transition ' +
+                    (isCorrect ? 'border-green-500 bg-green-50' : isWrong ? 'border-red-500 bg-red-50' : isSel ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:bg-gray-50')
+                  }
+                >
+                  {opt}
+                </button>
+              </li>
+            )
+          })}
+        </ul>
+        <div className="flex gap-2">
+          <Button size="sm" onClick={() => setRevealed(true)} disabled={revealed || selected === null}>Проверить</Button>
+          {revealed && <Button size="sm" variant="outline" onClick={() => { setSelected(null); setRevealed(false) }}>Сброс</Button>}
+        </div>
+        {revealed && (
+          <div className="p-4 rounded border bg-white/50">
+            {selected === correct ? (
+              <p className="text-green-700 font-medium">Верно! 🎉</p>
+            ) : (
+              <p className="text-red-700 font-medium">Неверно. Правильный ответ: {parsed.options[correct] ?? '—'}</p>
+            )}
+            {parsed.explanation && <p className="mt-2 text-sm text-gray-600">{parsed.explanation}</p>}
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  function PracticeBlock({ parsed }: { parsed: AIGeneratedLessonContent }) {
+    const [answer, setAnswer] = useState('')
+    const [saved, setSaved] = useState(false)
+    return (
+      <div className="space-y-4">
+        <h2 className="text-2xl font-semibold mb-2">Практическое упражнение</h2>
+        <p className="text-gray-700 whitespace-pre-wrap">{parsed.prompt || 'Опишите решение задачи по теме урока.'}</p>
+        <Textarea rows={6} value={answer} onChange={e=>{ setAnswer(e.target.value); setSaved(false) }} placeholder="Ваш развернутый ответ" />
+        <div className="flex gap-2">
+          <Button size="sm" onClick={()=>{ setSaved(true); toast.success('Ответ сохранён локально') }} disabled={!answer.trim()}>Сохранить</Button>
+          {saved && <span className="text-xs text-green-600 self-center">Сохранено ✓</span>}
+        </div>
+      </div>
+    )
+  }
+
+  function VoiceBlock({ parsed }: { parsed: AIGeneratedLessonContent }) {
+    return (
+      <div className="space-y-4">
+        <h2 className="text-2xl font-semibold">Голосовая практика</h2>
+        <p className="text-gray-700">Повторите фразу вслух, затем используйте модуль голосовой практики.</p>
+        <div className="p-4 rounded bg-purple-50 border text-purple-800 font-medium">{parsed.phrase || 'Фраза отсутствует'}</div>
+        <Button size="sm" variant="outline" onClick={()=> parsed.phrase && handlePlayTts(parsed.phrase)}>Прослушать</Button>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
       <Header />
@@ -604,10 +690,37 @@ export default function LessonPage({
           </div>
 
           {/* Lesson Content */}
-          <GlassCard className="p-8 mb-6" data-lesson-content>
-            <div className="prose prose-lg max-w-none">
-              <div dangerouslySetInnerHTML={{ __html: lesson.content.replace(/\n/g, "<br>") }} />
-            </div>
+          <GlassCard className="p-8 mb-6 space-y-6" data-lesson-content>
+            {(() => {
+              let parsed: AIGeneratedLessonContent | null = null
+              try {
+                if (/^\s*\{/.test(lesson.content)) parsed = JSON.parse(lesson.content)
+              } catch {}
+              if (!parsed || parsed.generator !== 'ai-course') {
+                return (
+                  <div className="prose prose-lg max-w-none">
+                    <div dangerouslySetInnerHTML={{ __html: lesson.content.replace(/\n/g, '<br>') }} />
+                  </div>
+                )
+              }
+              switch (parsed.kind) {
+                case 'text':
+                  return (
+                    <div className="prose prose-lg max-w-none">
+                      <h2 className="text-2xl font-semibold mb-4">{lesson.title}</h2>
+                      <p className="whitespace-pre-wrap leading-relaxed">{parsed.body || 'Нет содержимого'}</p>
+                    </div>
+                  )
+                case 'quiz':
+                  return <QuizBlock parsed={parsed} />
+                case 'practice':
+                  return <PracticeBlock parsed={parsed} />
+                case 'voice':
+                  return <VoiceBlock parsed={parsed} />
+                default:
+                  return <div className="text-sm text-muted-foreground">Неизвестный тип урока</div>
+              }
+            })()}
           </GlassCard>
 
           {/* Materials Section */}
