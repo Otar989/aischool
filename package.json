@@ -10,7 +10,8 @@
   "test": "pnpm test:unit && pnpm test:ui",
   "test:unit": "vitest run --project unit",
   "test:ui": "vitest run --project ui",
-    "promo:generate": "ts-node scripts/generate-promo.ts"
+  "promo:generate": "ts-node scripts/generate-promo.ts",
+  "courses:seed:ai": "ts-node scripts/ai-seed.ts"
   },
   "dependencies": {
     "@edge-runtime/vm": "latest",

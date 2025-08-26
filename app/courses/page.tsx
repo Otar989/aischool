@@ -13,6 +13,7 @@ import { Search, Filter, Users, Clock, Star, BookOpen, ArrowRight } from "lucide
 import Link from "next/link"
 import Image from "next/image"
 import { supabaseAdmin } from "@/lib/supabase/serverClient"
+import React from 'react'
 
 export default async function CoursesPage({
   searchParams,
@@ -22,7 +23,8 @@ export default async function CoursesPage({
   const page = Number(searchParams?.page || "1")
   const q = searchParams?.q || ""
 
-  let coursesData = []
+  let coursesData: any[] = []
+  let seeded = false
   try {
     const supabase = supabaseAdmin()
     const { data: courses, error } = await supabase
@@ -40,6 +42,29 @@ export default async function CoursesPage({
   } catch (error) {
     console.error("[v0] Error fetching courses:", error)
     coursesData = []
+  }
+
+  if (coursesData.length === 0) {
+    // Попытка авто-seed (AI или демо)
+    try {
+      const resp = await fetch(process.env.NEXT_PUBLIC_BASE_URL ? `${process.env.NEXT_PUBLIC_BASE_URL}/api/ai-courses/seed` : 'http://localhost:3000/api/ai-courses/seed', { method: 'POST', cache:'no-store' })
+      if (resp.ok) {
+        const js = await resp.json()
+        if (js.course_ids?.length) {
+          seeded = true
+          // повторный fetch
+          const supabase = supabaseAdmin()
+          const { data: again } = await supabase
+            .from('courses')
+            .select('id, title, slug, description, price, image_url, is_published')
+            .eq('is_published', true)
+            .order('created_at', { ascending:false })
+          coursesData = again || []
+        }
+      }
+    } catch (e) {
+      console.error('[courses] seed error', e)
+    }
   }
 
   const staticCourses = [
@@ -209,8 +234,8 @@ export default async function CoursesPage({
       <section className="pb-16 md:pb-20 px-4 md:px-6">
         <div className="max-w-7xl mx-auto">
           {coursesData.length === 0 && (
-            <div className="text-center mb-6">
-              <p className="text-muted-foreground">Курсы пока не найдены в базе данных. Показываем демо-курсы.</p>
+            <div className="text-center mb-6 animate-pulse">
+              <p className="text-muted-foreground">Готовим материалы…</p>
             </div>
           )}
 
