@@ -7,7 +7,9 @@
     "dev": "next dev",
     "lint": "next lint",
     "start": "next start",
-    "test": "vitest run",
+  "test": "pnpm test:unit && pnpm test:ui",
+  "test:unit": "vitest run --project unit",
+  "test:ui": "vitest run --project ui",
     "promo:generate": "ts-node scripts/generate-promo.ts"
   },
   "dependencies": {
